@@ -1,0 +1,410 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PJG4EXT.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+      * DECLARATION DU FICHIER
+           SELECT F-EXTRACT ASSIGN TO EXTRACT
+               FILE STATUS IS FS-EXT.
+
+       DATA DIVISION.
+       FILE SECTION.
+      * DECLARATION DE L'ENREGISTREMENT DU FICHIER
+       FD  F-EXTRACT
+           RECORDING MODE IS F.
+       01  EXT-ENR.
+      * ITEM
+           05 EXT-ITEM.
+              10 EXT-P-NO                PIC X(3).
+              10 EXT-QUANTITY            PIC 99.
+              10 EXT-ITE-PRICE           PIC 9(3)V99.
+      * PRODUCT
+           05 EXT-PRODUCT.
+              10 EXT-DESCRIPTION.
+                 15 EXT-DESCRIPTION-LEN  PIC 9(4).
+                 15 EXT-DESCRIPTION-TEXT PIC X(30).
+              10 EXT-PRO-PRICE           PIC 9(3)V99.
+      * ORDER
+           05 EXT-ORDER.
+              10 EXT-O-NO                PIC 9(3).
+              10 EXT-DATE                PIC X(10).
+      * CUSTOMER
+           05 EXT-CUSTOMER.
+              10 EXT-COMPANY.
+                 15 EXT-COMPANY-LEN      PIC 9(4).
+                 15 EXT-COMPANY-TEXT     PIC X(30).
+              10 EXT-ADDRESS.
+                 15 EXT-ADDRESS-LEN      PIC 9(4).
+                 15 EXT-ADDRESS-TEXT     PIC X(100).
+              10 EXT-CITY.
+                 15 EXT-CITY-LEN         PIC 9(4).
+                 15 EXT-CITY-TEXT        PIC X(20).
+              10 EXT-STATE               PIC XX.
+              10 EXT-ZIP                 PIC X(5).
+              10 EXT-PHONE               PIC X(10).
+      * EMPLOYEE
+           05 EXT-EMPLOYEE.
+              10 EXT-LNAME.
+                 15 EXT-LNAME-LEN        PIC 9(4).
+                 15 EXT-LNAME-TEXT       PIC X(20).
+              10 EXT-FNAME.
+                 15 EXT-FNAME-LEN        PIC 9(4).
+                 15 EXT-FNAME-TEXT       PIC X(20).
+              10 EXT-COM                 PIC 9V99.
+      * DEPT
+           05 EXT-DEPT.
+              10 EXT-DNAME.
+                 15 EXT-DNAME-LEN        PIC 9(4).
+                 15 EXT-DNAME-TEXT       PIC X(20).
+           05 FILLER                     PIC X(4).
+
+       WORKING-STORAGE SECTION.
+           EXEC SQL
+              INCLUDE SQLCA
+           END-EXEC.
+
+           EXEC SQL INCLUDE ORDERS END-EXEC
+           EXEC SQL INCLUDE CUSTOMER END-EXEC
+           EXEC SQL INCLUDE EMPLOYES END-EXEC
+           EXEC SQL INCLUDE DEPTS END-EXEC
+           EXEC SQL INCLUDE ITEMS END-EXEC
+           EXEC SQL INCLUDE PRODUCTS END-EXEC
+
+      * DECLARATION DU CURSEUR SUR LA TABLE CUSTOMERS
+      * AVEC UNE EQUI JOINTURE SUR LES TABLES ORDERS, EMPLOYEES & DEPTS
+           EXEC SQL
+               DECLARE CCUSTOMERS CURSOR
+               FOR
+               SELECT ORD.O_NO,
+                      ORD.O_DATE,
+                      CUS.COMPANY,
+                      CUS.ADDRESS,
+                      CUS.CITY,
+                      CUS.ZIP,
+                      CUS.STATE,
+                      CUS.PHONE,
+                      EMP.LNAME,
+                      EMP.FNAME,
+                      EMP.COM,
+                      DEP.DNAME
+               FROM API2.CUSTOMERS CUS
+                   INNER JOIN API2.ORDERS ORD ON ORD.C_NO = CUS.C_NO
+                   INNER JOIN API2.EMPLOYEES EMP ON EMP.E_NO = ORD.S_NO
+                   INNER JOIN API2.DEPTS DEP ON DEP.DEPT = EMP.DEPT
+               ORDER BY ORD.O_NO
+           END-EXEC
+
+      * DECLARATION DU CURSEUR SUR LA TABLE ITEMS
+      * AVEC UNE EQUI JOINTURE SUR LA TABLE PRODUCTS
+           EXEC SQL
+               DECLARE CITEMS CURSOR
+               FOR
+             SELECT ITE.QUANTITY,
+                    ITE.PRICE,
+                    PRO.P_NO,
+                    PRO.DESCRIPTION,
+                    PRO.PRICE
+             FROM API2.ITEMS ITE
+                  INNER JOIN API2.PRODUCTS PRO ON PRO.P_NO = ITE.P_NO
+             WHERE ITE.O_NO = :ORD-O-NO
+           END-EXEC
+
+       01  WS-ANO     PIC 99 VALUE ZERO.
+       01  ED-SQLCODE PIC +9(9).
+       01  FS-EXT     PIC 99 VALUE ZERO.
+
+      * INDICATEURS DE VARIABLES
+       01  INDIC-ADDRESS   PIC S9(4) COMP.
+       01  INDIC-PHONE     PIC S9(4) COMP.
+       01  INDIC-FNAME     PIC S9(4) COMP.
+
+      * VARIABLE DE LOG
+       01  WS-PGM          PIC X(8)    VALUE 'PJG4EXT'.
+       01  WS-MSG          PIC X(164).
+       01  WS-CONTEXT      PIC X(50).
+       01  WS-CONTEXT-LEN  PIC 99.
+       01  WS-USER         PIC X(8).
+
+       PROCEDURE DIVISION.
+           PERFORM OPEN-CCUSTOMERS
+           PERFORM OPEN-FILE
+           PERFORM FETCH-CCUSTOMERS
+
+           PERFORM UNTIL SQLCODE NOT EQUAL ZERO
+              PERFORM GET-ITEMS
+              PERFORM FETCH-CCUSTOMERS
+           END-PERFORM
+
+           PERFORM CLOSE-CCUSTOMERS
+           PERFORM CLOSE-FILE
+
+           GOBACK
+           .
+
+      * OUVERTURE DU CURSEUR DE LA TABLE CUSTOMERS
+       OPEN-CCUSTOMERS.
+           EXEC SQL
+               OPEN CCUSTOMERS
+           END-EXEC
+
+           STRING 'OUVERTURE DU CURSEUR DE LA TABLE CUSTOMERS'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-SQLCODE
+           .
+
+      * FERMETURE DU CURSEUR DE LA TABLE CUTOMERS
+       CLOSE-CCUSTOMERS.
+           EXEC SQL
+               CLOSE CCUSTOMERS
+           END-EXEC
+
+           STRING 'FERMETURE DU CURSEUR DE LA TABLE CUSTOMERS'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-SQLCODE
+           .
+
+      * OUVERTURE DES FICHIERS
+       OPEN-FILE.
+           OPEN OUTPUT F-EXTRACT
+
+           STRING 'OUVERTURE DU FICHIER EXTRACT'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS
+           .
+
+      * FERMETURE DES FICHIERS
+       CLOSE-FILE.
+           CLOSE F-EXTRACT
+           .
+
+      * RECUPERATION DES PRODUITS VENDU
+       GET-ITEMS.
+           PERFORM OPEN-CITEMS
+           PERFORM FETCH-CITEMS
+
+           PERFORM UNTIL SQLCODE NOT EQUAL ZERO
+              PERFORM EXPORT-FILE
+              PERFORM FETCH-CITEMS
+           END-PERFORM
+
+           PERFORM CLOSE-CITEMS
+           .
+
+      * OUVERTURE DU CURSEUR DE LA TABLE ITEMS
+       OPEN-CITEMS.
+           EXEC SQL
+               OPEN CITEMS
+           END-EXEC
+
+           STRING 'OUVERTURE DU CURSEUR DE LA TABLE ITEMS'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-SQLCODE
+           .
+
+      * FERMETURE DU CURSEUR DE LA TABLE ITEMS
+       CLOSE-CITEMS.
+           EXEC SQL
+               CLOSE CITEMS
+           END-EXEC
+
+           STRING 'FERMETURE DU CURSEUR DE LA TABLE ITEMS'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-SQLCODE
+           .
+
+      * INIT DES VARIABLES D'ENREGISTREMENT
+      * AVEC LES DONNEES DE LA TABLE CUSTOMERS
+       FETCH-CCUSTOMERS.
+           INITIALIZE DCLCUSTOMERS
+           INITIALIZE DCLEMPLOYEES
+           INITIALIZE DCLORDERS
+           INITIALIZE DCLDEPTS
+
+           EXEC SQL
+               FETCH CCUSTOMERS
+               INTO :ORD-O-NO,
+                    :ORD-O-DATE,
+                    :CUS-COMPANY,
+                    :CUS-ADDRESS:INDIC-ADDRESS,
+                    :CUS-CITY,
+                    :CUS-ZIP,
+                    :CUS-STATE,
+                    :CUS-PHONE:INDIC-PHONE,
+                    :EMP-LNAME,
+                    :EMP-FNAME:INDIC-FNAME,
+                    :EMP-COM,
+                    :DEP-DNAME
+           END-EXEC
+
+           STRING 'FETCH CUSTOMER'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-SQLCODE
+           .
+
+      * INIT DES VARIABLES D'ENREGISTREMENT
+      * AVEC LES DONNEES DE LA TABLE ITEMS
+       FETCH-CITEMS.
+           INITIALIZE DCLITEMS
+           INITIALIZE DCLPRODUCTS
+
+           EXEC SQL
+               FETCH CITEMS
+               INTO :ITE-QUANTITY,
+                    :ITE-PRICE,
+                    :PRO-P-NO,
+                    :PRO-DESCRIPTION,
+                    :PRO-PRICE
+           END-EXEC
+
+           STRING 'FETCH ITEMS'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-SQLCODE
+           .
+
+      * VERIFICATION DU CODE RETOUR SQL
+       TEST-SQLCODE.
+           MOVE SQLCODE TO ED-SQLCODE
+           EVALUATE TRUE
+               WHEN SQLCODE = ZERO
+                   CONTINUE
+               WHEN SQLCODE > ZERO
+                   DISPLAY 'WARNING - ' WS-MSG  ' : ' ED-SQLCODE
+               WHEN OTHER
+                   STRING 'ERREUR '
+                          WS-CONTEXT(1:WS-CONTEXT-LEN)
+                          ' SQLCODE : '
+                          ED-SQLCODE
+                          DELIMITED BY SIZE
+                          INTO WS-MSG
+                   END-STRING
+                   PERFORM LOG
+                   PERFORM ABEND-PROG
+           END-EVALUATE
+           .
+
+      * ECRITURE DES DONNEES DANS LE FICHIER
+       EXPORT-FILE.
+           PERFORM SET-EXT-ENR
+
+           WRITE EXT-ENR
+           STRING 'ECRITURE DANS LE FICHIER PROJET.EXTRACT.DATA'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+           PERFORM TEST-FS
+           .
+
+      * VERIFICATION DU FILE STATUS
+       TEST-FS.
+           IF FS-EXT NOT = ZERO
+              STRING 'ERREUR '
+                     WS-CONTEXT(1:WS-CONTEXT-LEN)
+                     ' FS : '
+                     FS-EXT
+                     DELIMITED BY SIZE
+                     INTO WS-MSG
+              END-STRING
+
+              PERFORM LOG
+              PERFORM ABEND-PROG
+           END-IF
+           .
+
+      * INIT L'ENREGISTREMENT DU FICHIER AVEC LES DONNEES SQL
+       SET-EXT-ENR.
+      * ITEM
+           MOVE PRO-P-NO             TO EXT-P-NO
+           MOVE ITE-QUANTITY         TO EXT-QUANTITY
+           MOVE ITE-PRICE            TO EXT-ITE-PRICE
+
+      * PRODUCT
+           MOVE PRO-DESCRIPTION-TEXT TO EXT-DESCRIPTION-TEXT
+           MOVE PRO-DESCRIPTION-LEN  TO EXT-DESCRIPTION-LEN
+           MOVE PRO-PRICE            TO EXT-PRO-PRICE
+
+      * ORDER
+           MOVE ORD-O-NO             TO EXT-O-NO
+           MOVE ORD-O-DATE           TO EXT-DATE
+
+      * CUSTOMER
+           MOVE CUS-COMPANY-TEXT     TO EXT-COMPANY-TEXT
+           MOVE CUS-COMPANY-LEN      TO EXT-COMPANY-LEN
+           MOVE CUS-CITY-TEXT        TO EXT-CITY-TEXT
+           MOVE CUS-CITY-LEN         TO EXT-CITY-LEN
+           MOVE CUS-STATE            TO EXT-STATE
+           MOVE CUS-ZIP              TO EXT-ZIP
+
+           IF INDIC-PHONE IS NEGATIVE
+              MOVE SPACE             TO CUS-PHONE
+           END-IF
+           MOVE CUS-PHONE            TO EXT-PHONE
+
+           IF INDIC-ADDRESS IS NEGATIVE
+              MOVE SPACE             TO CUS-ADDRESS-TEXT
+              MOVE 0                 TO CUS-ADDRESS-LEN
+           END-IF
+           MOVE CUS-ADDRESS-TEXT     TO EXT-ADDRESS-TEXT
+           MOVE CUS-ADDRESS-LEN      TO EXT-ADDRESS-LEN
+
+      * EMPLOYEE
+           MOVE EMP-LNAME-TEXT       TO EXT-LNAME-TEXT
+           MOVE EMP-LNAME-LEN        TO EXT-LNAME-LEN
+           MOVE EMP-COM              TO EXT-COM
+
+           IF INDIC-FNAME IS NEGATIVE
+              MOVE SPACE             TO EMP-FNAME-TEXT
+              MOVE 0                 TO EMP-FNAME-LEN
+           END-IF
+           MOVE EMP-FNAME-TEXT       TO EXT-FNAME-TEXT
+           MOVE EMP-FNAME-LEN        TO EXT-FNAME-LEN
+
+      * DEPT
+           MOVE DEP-DNAME-TEXT       TO EXT-DNAME-TEXT
+           MOVE DEP-DNAME-LEN        TO EXT-DNAME-LEN
+           .
+
+      * ECRITURE DANS LE LOG
+       LOG.
+           EXEC SQL
+              SELECT USER
+                INTO :WS-USER
+                FROM SYSIBM.SYSDUMMY1
+           END-EXEC
+           CALL 'LOGDATA' USING WS-MSG, WS-PGM, WS-USER
+           .
+
+      * PROVOQUE UN ABEND
+       ABEND-PROG.
+           COMPUTE WS-ANO = 1 / WS-ANO
+           .

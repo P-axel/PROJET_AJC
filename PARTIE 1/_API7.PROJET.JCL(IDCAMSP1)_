@@ -1,0 +1,15 @@
+//API7C   JOB (ACCT#),'JULIAN',CLASS=A,MSGCLASS=H,NOTIFY=&SYSUID,       00010001
+//            MSGLEVEL=(1,1),COND=(4,LT),TIME=(,5)                      00020001
+//STEP1   EXEC PGM=IDCAMS
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+ /*                                                 */
+ DEFINE CLUSTER            -
+   (                       -
+   NAME(API7.PROJET.TAUXCONV.KSDS) -
+   RECSZ(20,20)       -
+   INDEXED                 -
+   KEYS(3,0)               -
+   TRK(1,1)                -
+   )
+/*

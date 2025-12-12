@@ -1,0 +1,84 @@
+ETAPE 1 :
+
+Créer le fichier séquentiel apix.projet.tauxconv.data (ou bien source selon vos configurations)
+
+Paramètres : 
+
+General Data                           Current Allocation                      
+ Management class . . : **None**        Allocated tracks  . : 5                
+ Storage class  . . . : SCAPI           Allocated extents . : 1                
+  Volume serial . . . : APIWK3                                                 
+  Device type . . . . : 3390                                                   
+ Data class . . . . . : **None**       Current Utilization                     
+  Organization  . . . : PS              Used tracks . . . . : 1                
+  Record format . . . : FB              Used extents  . . . : 1                
+  Record length . . . : 20                                                     
+  Block size  . . . . : 200                                                    
+  1st extent tracks . : 5                                                      
+  Secondary tracks  . : 4                                                      
+  Data set name type  :                 SMS Compressible  . : NO               
+                                                                               
+  Creation date . . . : 2025/11/07      Referenced date . . : 2025/11/28       
+  Expiration date . . : ***None***                                             
+
+
+DONNEES : 
+
+CAD0.71469   
+CNY0.1405    
+EUR1.1578    
+USD1.0000    
+YEN0.0064714 
+
+****************************************************************************
+
+
+ETAPE 2 :
+
+Mise en place du fichier NEWPRODS fourni dans les SOURCES via Steeve.
+Le créer avec le JCL IEFBR14
+
+DONNEES : 
+
+P06;DESKTOP COMPUTER;350.55;USD;20                
+P07;DOCKING STATION;200;EUR;10                    
+P10;USB FLASH DRIVE;15;EUR;100                    
+P11;HEADPHONES;30.5;USD;150                       
+P12;MICRO;25.75;CNY;50                            
+P12;KEYBOARD;11.99;EUR;200                        
+P13;TABLET;125.20;CNY;25                          
+P14;LAPTOP;899.99;USD;30                          
+P15;MOTHERBOARD;60;EUR;20                         
+P18;NETWORK SWITCH;150.75;CNY;30                  
+P19;LAPTOP GAMER;900;EUR;10                       
+P20;SSD HARD DISK;152.50;CNY;10                   
+P21;USB DRIVE;DO;19.99;20                         
+P23;LENOVO THINKPAD X1 CARBON GEN 13;999.99;EUR;15
+P24;IDEAPAD SLIM 3I GEN 9;799;USD;10              
+P25;THINKPAD T16 GEN 3;499.95;EUR;1O              
+
+
+
+**************************************************************************
+  
+ETAPE 3 :
+
+Trier ce fichier avec le jcl SORTP1.
+
+**************************************************************************
+
+ETAPE 4 :
+
+Créer le KSDS avec le jcl IDCAMSP1.
+
+*********************************************************************************
+
+ETAPE 5 :
+
+Transférer les données du fichier séquentiel dans le nouveau fichiefr KSDS avec le jcl PRINTP1
+
+**********************************************************************************************
+
+ETAPE 6 :
+
+Plus qu'a mettre en place le cobol PROJG4PP, le BD2 (DB2PART1) puis les jcl de compilation et d'execution restants.

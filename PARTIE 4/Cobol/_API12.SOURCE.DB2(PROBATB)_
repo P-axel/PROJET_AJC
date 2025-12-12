@@ -1,0 +1,254 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PROBATB.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT STATS ASSIGN TO STATDATA
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS FS-STATS.
+
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  STATS
+           RECORDING MODE IS F.
+
+       01  ENR-STATS       PIC X(200).
+
+
+       WORKING-STORAGE SECTION.
+
+
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+           EXEC SQL INCLUDE CUSTOMER END-EXEC.
+           EXEC SQL INCLUDE ITEMS END-EXEC.
+           EXEC SQL INCLUDE ORDERS END-EXEC.
+
+      *CURSEUR
+           EXEC SQL
+           DECLARE CURB CURSOR FOR
+           SELECT
+               C.CITY,
+               SUM(I.QUANTITY * I.PRICE)
+           FROM API12.CUSTOMERS C
+           JOIN API12.ORDERS O ON O.C_NO = C.C_NO
+           JOIN API12.ITEMS  I ON I.O_NO = O.O_NO
+           GROUP BY C.CITY
+           ORDER BY C.CITY
+           END-EXEC
+
+       77  FS-STATS            PIC 99          VALUE 0.
+       77  FS-LOG              PIC 99          VALUE 0.
+       77  WS-DATE             PIC X(6)        VALUE SPACES.
+       77  WS-SQLCODE          PIC -9(9).
+       77  WS-ANO              PIC 99          VALUE ZERO.
+       77  H-CITY              PIC X(20).
+      * VARIABLE DE LOG
+       77  WS-MSG              PIC X(164).
+       77  WS-PGM              PIC X(8) VALUE 'PROBATB'.
+       77  WS-CONTEXT          PIC X(30).
+       77  WS-CONTEXT-LEN      PIC 99.
+       77  WS-USER             PIC X(8).
+
+
+      * AGREGATS -> TOTAL VENTES PAR VILLE
+       01 H-TOTAL-VENTES  PIC S9(9)V99 COMP-3.
+
+       01 TOT-GLOBAL  PIC S9(9)V99 COMP-3 VALUE 0.
+
+      * VARIABLE POUR STOCKER LE NUMERIC EN CHAINE
+
+      * AFFICHAGE
+       77 STAR-LINE        PIC X(31) VALUE ALL '*'.
+       01 F-LIGNE.
+          05 FILLER              PIC X(1) VALUE '*'.
+          05 H-CITY-ED           PIC X(17) VALUE SPACES.
+          05 H-TOTAL-VENTES-ED   PIC $.$$$.$$9,99.
+          05 FILLER              PIC X(1) VALUE '*'.
+
+       01 F-TOT.
+          05 FILLER              PIC X(1) VALUE '*'.
+          05 FILLER              PIC X(13)   VALUE ' TOTAL     : '.
+          05 TOT-GLOBAL-ED       PIC $$$.$$$.$$9,99.
+          05 FILLER              PIC X(1) VALUE '*'.
+
+
+       PROCEDURE DIVISION.
+       MAIN.
+           PERFORM OUVERTURE-FICHIER
+           PERFORM TRAITEMENT-SQL
+           PERFORM FERMETURE-FICHIERS
+           PERFORM FIN-PROGRAMME
+           GOBACK.
+
+
+       OUVERTURE-FICHIER.
+           OPEN OUTPUT STATS
+
+           STRING 'OUVERTURE DU FICHIER STATS'
+                   DELIMITED BY SIZE
+                   INTO WS-CONTEXT
+                   WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+           PERFORM LOG
+           PERFORM TEST-FS
+            .
+
+
+       TRAITEMENT-SQL.
+           MOVE 0 TO WS-SQLCODE
+      * OUVERTURE CURSEUR
+
+           EXEC SQL
+                OPEN CURB
+           END-EXEC
+
+
+      * MOVE 'OUVERTURE CURSEUR'  TO WS-MSG
+           PERFORM TEST-SQLCODE
+
+
+      * PREMIER FETCH
+           PERFORM FETCH
+           PERFORM TEST-SQLCODE
+
+      * AFFICHAGE  EN-TETE
+           MOVE STAR-LINE  TO ENR-STATS
+           WRITE ENR-STATS
+           DISPLAY ENR-STATS
+
+
+      * BOUCLE PRINCIPALE
+           PERFORM UNTIL SQLCODE = 100
+
+              PERFORM AFFICHAGE
+
+
+      * ACCUMULER LE TOTAL GLOBAL
+              ADD  H-TOTAL-VENTES  TO TOT-GLOBAL
+
+              PERFORM FETCH
+              PERFORM TEST-SQLCODE
+           END-PERFORM
+
+           PERFORM AFFICHAGE-TOT
+
+
+           EXEC SQL
+                CLOSE CURB
+           END-EXEC
+
+           MOVE 'CLOSE CURSEUR' TO WS-MSG
+           PERFORM TEST-SQLCODE
+           GOBACK.
+
+       FETCH.
+
+            EXEC SQL
+                FETCH CURB
+                INTO :CUS-CITY,
+                     :H-TOTAL-VENTES
+            END-EXEC.
+
+       FERMETURE-FICHIERS.
+           MOVE 'FERMETURE FICHIERS' TO WS-MSG
+           PERFORM  LOG
+           CLOSE STATS
+           IF FS-STATS NOT = 0
+              MOVE 'ERREUR FERMETURE FICHIERS' TO WS-MSG
+              PERFORM  LOG
+           END-IF.
+
+       AFFICHAGE.
+
+           MOVE ALL SPACES TO H-CITY-ED.
+
+           IF CUS-CITY-LEN = 0
+               MOVE "VILLE INCONNUE" TO H-CITY
+           ELSE
+               MOVE CUS-CITY-TEXT(1:CUS-CITY-LEN) TO H-CITY
+           END-IF
+
+           MOVE H-CITY TO H-CITY-ED(1:CUS-CITY-LEN)
+           MOVE " : "    TO H-CITY-ED(CUS-CITY-LEN + 1:2)
+           MOVE H-TOTAL-VENTES TO H-TOTAL-VENTES-ED
+
+           WRITE ENR-STATS FROM F-LIGNE
+           DISPLAY F-LIGNE.
+
+
+       AFFICHAGE-TOT.
+      *  LIGNE D'ETOILES
+           DISPLAY STAR-LINE
+           WRITE ENR-STATS FROM STAR-LINE
+      * INITIALISATION DE LA VARIABLE
+           MOVE 0 TO TOT-GLOBAL-ED
+
+      * FORMATAGE
+           MOVE   TOT-GLOBAL      TO TOT-GLOBAL-ED
+           WRITE ENR-STATS FROM F-TOT
+           DISPLAY F-TOT
+
+
+           DISPLAY STAR-LINE
+           WRITE ENR-STATS FROM STAR-LINE.
+
+
+       TEST-FS.
+           IF FS-STATS NOT = ZERO
+           STRING 'ERREUR '
+                WS-CONTEXT(1:WS-CONTEXT-LEN)
+                ' FS : '
+                FS-STATS
+                DELIMITED BY SIZE
+                INTO WS-MSG
+           END-STRING
+
+           PERFORM LOG
+           PERFORM ABEND-PROG
+           END-IF
+               .
+
+       TEST-SQLCODE.
+           MOVE SQLCODE TO WS-SQLCODE
+           EVALUATE TRUE
+              WHEN SQLCODE = ZERO
+                   CONTINUE
+              WHEN SQLCODE > ZERO
+                   DISPLAY 'WARNING - ' WS-MSG  ' : ' WS-SQLCODE
+              WHEN OTHER
+                  STRING 'ERREUR '
+                     WS-CONTEXT(1:WS-CONTEXT-LEN)
+                     ' SQLCODE : '
+                     WS-SQLCODE
+                     DELIMITED BY SIZE
+                     INTO WS-MSG
+                 END-STRING
+           PERFORM LOG
+           PERFORM ABEND-PROG
+                  END-EVALUATE
+           .
+
+       ABEND-PROG.
+           DISPLAY 'ANO !!!!'
+           COMPUTE WS-ANO = 1 / WS-ANO.
+
+       FIN-PROGRAMME.
+           MOVE 'TRAITEMENT TERMINE AVEC SUCCES.' TO WS-MSG
+           PERFORM  LOG
+           DISPLAY WS-MSG.
+
+
+       LOG.
+            EXEC SQL
+               SELECT USER
+                 INTO :WS-USER
+                 FROM SYSIBM.SYSDUMMY1
+            END-EXEC
+            CALL 'LOGDATA' USING WS-MSG, WS-PGM, WS-USER.

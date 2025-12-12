@@ -1,0 +1,83 @@
+//API2EXT  JOB (ACCT#),'FABRICE',MSGCLASS=H,REGION=4M,
+//    CLASS=A,MSGLEVEL=(1,1),NOTIFY=&SYSUID,
+//    COND=(4,LT),TIME=(0,30)
+//*
+//*------------------------------------------------------*
+//* ===> CHANGER XX PAR N¢ DU GROUPE   (XX 01 @ 15)      *
+//*      CHANGER     API2DB$ PAR LE NOM DU PROGRAMME     *
+//*------------------------------------------------------*
+//*
+//*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*
+//*   CETTE PROCEDURE CONTIENT 5 STEPS :                             *
+//*       ======> SI RE-EXECUTION FAIRE RESTART AU "STEPRUN"         *
+//*                                                                  *
+//*         1/  PRECOMPILE  DB2                                      *
+//*         2/  COMPILE COBOL II                                     *
+//*         3/  LINKEDIT  (DANS FORM.CICS.LOAD)                      *
+//*         4/  BIND PLAN PARTIR DE API2.SOURCE.DBRMLIB              *
+//*         5/  EXECUTE DU PROGRAMME                                 *
+//*  LES   PROCEDURES  SE TROUVENT DANS SDJ.FORM.PROCLIB             *
+//*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*
+//PROCLIB  JCLLIB ORDER=SDJ.FORM.PROCLIB
+//*
+//         SET SYSUID=API2,
+//             NOMPGM=PJG4EXT
+//APPROC   EXEC COMPDB2
+//STEPDB2.SYSLIB   DD DSN=&SYSUID..SOURCE.DCLGEN,DISP=SHR
+//STEPDB2.SYSIN    DD DSN=&SYSUID..SOURCE.DB2(&NOMPGM),DISP=SHR
+//STEPDB2.DBRMLIB  DD DSN=&SYSUID..SOURCE.DBRMLIB(&NOMPGM),DISP=SHR
+//*STEPCOB.SYSLIB   DD DSN=&SYSUID..COB.CPY,DISP=SHR
+//STEPLNK.SYSLMOD  DD DSN=&SYSUID..SOURCE.LOAD(&NOMPGM),DISP=SHR
+//STEPLNK.SYSLIB   DD DSN=API2.SOURCE.LOAD,DISP=SHR
+//                 DD DSN=CICSTS22.CICS.SDFHEXCI,DISP=SHR
+//                 DD DSN=CICSTS22.CICS.SDFHLOAD,DISP=SHR
+//                 DD DSN=DSN710.SDSNLOAD,DISP=SHR
+//                 DD DSN=CEE.SCEECICS,DISP=SHR
+//                 DD DSN=CEE.SCEELKED,DISP=SHR
+//STEPLNK.SYSIN    DD *
+ INCLUDE SYSLIB('LOGDATA')
+/*
+//*
+//*--- ETAPE DE BIND --------------------------------------
+//*
+//BIND     EXEC PGM=IKJEFT01,COND=(4,LT)
+//DBRMLIB  DD  DSN=&SYSUID..SOURCE.DBRMLIB,DISP=SHR
+//SYSTSPRT DD  SYSOUT=*,OUTLIM=25000
+//SYSTSIN  DD  *
+  DSN SYSTEM (DSN1)
+  BIND PLAN      (PJG4EXT)  -
+       QUALIFIER (API2)     -
+       ACTION    (REPLACE)  -
+       MEMBER    (PJG4EXT)  -
+       VALIDATE  (BIND)     -
+       ISOLATION (CS)       -
+       ACQUIRE   (USE)      -
+       RELEASE   (COMMIT)   -
+       EXPLAIN   (NO)
+/*
+//*
+//*--- ETAPE DE SUPPRESSION DE FICHIER ------------------------------
+//*
+//STEPFILE EXEC PGM=IDCAMS
+//SYSPRINT DD SYSOUT=*
+//SYSIN    DD *
+ DELETE API2.PROJET.EXTRACT.DATA
+ IF MAXCC > 0 THEN SET MAXCC=0
+/*
+//*
+//*--- ETAPE D'EXECUTION DU PROGRAMME ------------------------------
+//*
+//STEPRUN  EXEC PGM=IKJEFT01,COND=(4,LT)
+//STEPLIB  DD  DSN=&SYSUID..SOURCE.LOAD,DISP=SHR
+//SYSOUT   DD  SYSOUT=*,OUTLIM=1000
+//SYSTSPRT DD  SYSOUT=*,OUTLIM=2500
+//EXTRACT  DD  DSN=API2.PROJET.EXTRACT.DATA,DISP=(NEW,CATLG,DELETE),
+//             SPACE=(TRK,(1,1)),RECFM=FB,LRECL=320,BLKSIZE=3200,
+//             DSORG=PS
+//LOG      DD  DSN=API2.PROJET.LOGDATA.DATA,DISP=SHR
+//SORTWK   DD  DSN=API2.PROJET.TEMP.DATA,SPACE=(CYL,(10,5)),
+//             DISP=(NEW,DELETE)
+//SYSTSIN  DD  *
+  DSN SYSTEM (DSN1)
+  RUN PROGRAM(PJG4EXT) PLAN (PJG4EXT)
+/*

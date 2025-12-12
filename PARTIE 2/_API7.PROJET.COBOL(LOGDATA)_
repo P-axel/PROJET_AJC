@@ -1,0 +1,164 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. LOGDATA.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+      * DECLARATION DU FICHIER DE LOG
+           SELECT F-LOG ASSIGN TO LOG
+               FILE STATUS IS FS-LOG.
+
+      * DECLARATION DU FICHIER TEMPORAIRE POUR LE TRI
+           SELECT F-SORT ASSIGN TO SORTWK.
+
+       DATA DIVISION.
+       FILE SECTION.
+      * DECLARATION DE L'ENREGISTREMENT DU FICHIER LOG
+       FD F-LOG
+           RECORDING MODE IS F.
+       01  ENR-LOG.
+           05 LOG-DATETIME PIC X(22).
+           05 LOG-TEXT     PIC X(178).
+
+      * DECLARATION DE L'ENREGISTREMENT DU FICHIER TEMPORAIRE
+       SD F-SORT.
+       01  ENR-SORT.
+           05 SORT-DATETIME PIC X(22).
+           05 SORT-TEXT     PIC X(178).
+       WORKING-STORAGE SECTION.
+      * VARIABLE D'ANOMALIE POUR PROVOQUER L'ABEND DU PROGRAMME
+       01  WS-ANO  PIC 99 VALUE ZERO.
+
+      * VARIABLE DE FIN DE FICHIER DU FICHIER TEMPORAIRE
+       01  WS-EOF  PIC X.
+           88 EOF-Y       VALUE 'Y'.
+
+      * FILE STATUS
+       01  FS-LOG   PIC 99 VALUE ZERO.
+
+      * VARIABLE DE LOG
+       01  WS-DATE.
+           05 WS-YEAR     PIC 9(4).
+           05 WS-MONTH    PIC 99.
+           05 WS-DAY      PIC 99.
+       01  WS-TIME.
+           05 WS-HOUR     PIC 99.
+           05 WS-MINUTE   PIC 99.
+           05 WS-SECOND   PIC 99.
+           05 FILLER      PIC 99.
+       01  WS-CONTEXT     PIC X(15).
+       01  WS-CONTEXT-LEN PIC 99.
+
+       LINKAGE SECTION.
+      * VARIABLE DE LOG
+       01  LS-MSG          PIC X(164).
+       01  LS-PGM          PIC X(8).
+       01  LS-USER         PIC X(8).
+
+       PROCEDURE DIVISION USING LS-MSG, LS-PGM, LS-USER.
+           PERFORM ACCEPT-DATETIME
+           PERFORM LOG
+           PERFORM SORT-LOG
+           GOBACK
+           .
+
+      * RECUPARATION DE LA DATE DU JOUR & L'HEURE
+       ACCEPT-DATETIME.
+           ACCEPT WS-DATE FROM DATE YYYYMMDD
+           ACCEPT WS-TIME FROM TIME
+           .
+
+      * ECRITURE DANS LE LOG
+       LOG.
+           OPEN EXTEND F-LOG
+           MOVE 'OUVERTURE LOG' TO WS-CONTEXT
+           MOVE 13 TO WS-CONTEXT-LEN
+           PERFORM TEST-FS
+
+           STRING '[',
+                  WS-YEAR,
+                  '-',
+                  WS-MONTH,
+                  '-',
+                  WS-DAY,
+                  ' ',
+                  WS-HOUR,
+                  ':',
+                  WS-MINUTE,
+                  ':',
+                  WS-SECOND,
+                  '] '
+                  DELIMITED BY SIZE
+                  INTO LOG-DATETIME
+           END-STRING
+
+           STRING 'USER='  DELIMITED BY SIZE,
+                  LS-USER  DELIMITED BY SPACE,
+                  ', PGM=' DELIMITED BY SIZE,
+                  LS-PGM   DELIMITED BY SPACE,
+                  ', MSG=' DELIMITED BY SIZE,
+                  LS-MSG   DELIMITED BY SIZE
+                  INTO LOG-TEXT
+           END-STRING
+
+           WRITE ENR-LOG
+           MOVE 'ECRITURE LOG' TO WS-CONTEXT
+           MOVE 12 TO WS-CONTEXT-LEN
+           PERFORM TEST-FS
+
+           CLOSE F-LOG
+           .
+
+      * VERIFICATION DU FS-LOG
+       TEST-FS.
+           IF FS-LOG NOT = ZERO
+              DISPLAY 'ERREUR ' WS-CONTEXT(1:WS-CONTEXT-LEN)
+                 ' FS-LOG : ' FS-LOG
+
+              CLOSE F-LOG
+              PERFORM ABEND-PROG
+           END-IF
+           .
+
+      * TRI LE FICHIER DE LOG DU PLUS RECENT AU PLUS ANCIEN
+       SORT-LOG.
+           SORT F-SORT
+                ON DESCENDING KEY SORT-DATETIME
+                INPUT PROCEDURE INPUT-PROC
+                OUTPUT PROCEDURE OUTPUT-PROC
+           .
+
+      * PROVOQUE UN ABEND
+       ABEND-PROG.
+           DISPLAY 'ANO !!!!'
+           COMPUTE WS-ANO = 1 / WS-ANO
+           .
+
+       INPUT-PROC SECTION.
+           OPEN INPUT F-LOG
+           READ F-LOG
+           PERFORM UNTIL FS-LOG = 10
+              RELEASE ENR-SORT FROM ENR-LOG
+              READ F-LOG
+           END-PERFORM
+           CLOSE F-LOG
+
+           EXIT
+           .
+
+       OUTPUT-PROC SECTION.
+           OPEN OUTPUT F-LOG
+           PERFORM UNTIL EOF-Y
+              RETURN F-SORT
+                 AT END
+                    SET EOF-Y TO TRUE
+                 NOT AT END
+                    WRITE ENR-LOG FROM ENR-SORT
+              END-RETURN
+           END-PERFORM
+           CLOSE F-LOG
+
+           EXIT
+           .
+

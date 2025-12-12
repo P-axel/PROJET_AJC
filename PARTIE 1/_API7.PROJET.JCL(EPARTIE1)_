@@ -1,0 +1,18 @@
+//API7E   JOB (ACCT#),'JULIAN',CLASS=A,MSGCLASS=H,NOTIFY=&SYSUID,       00010042
+//            MSGLEVEL=(1,1),COND=(4,LT),TIME=(,5)                      00020041
+//JEXEC   EXEC PGM=PROJG4PP                                             00030053
+//STEPLIB DD DSN=API7.SOURCE.LOAD,DISP=SHR                              00040037
+//PROD DD DSN=API7.PROJET.NEWPRODS.DATA,DISP=SHR                        00050040
+//KSDS DD DSN=API7.PROJET.TAUXCONV.KSDS,DISP=SHR                        00060056
+//OUT1 DD DSN=API7.PROJET.OUTPRODS.DATA,DISP=OLD                        00070097
+//*OUT1 DD DSN=API7.PROJET.OUTPRODS.DATA,DISP=(NEW,CATLG,DELETE),       00080097
+//*         SPACE=(TRK,(1,1,0)),RECFM=FB,LRECL=45,BLKSIZE=450           00090097
+//OUT2 DD DSN=API7.PROJET.NEWPRODS.ERR,DISP=OLD                         00100098
+//*OUT2 DD DSN=API7.PROJET.NEWPRODS.ERR,DISP=(NEW,CATLG,DELETE),        00110098
+//*            SPACE=(TRK,(5,4,0)),RECFM=FB,LRECL=160,BLKSIZE=1600      00120098
+//*FLOG DD DSN=API7.PROJET.LOGDATA.DATA,DISP=OLD                        00130099
+//*FLOG DD DSN=API7.PROJET.LOGDATA.DATA,DISP=(NEW,CATLG,DELETE),        00140099
+//*            SPACE=(TRK,(5,4,0)),RECFM=FB,LRECL=200,BLKSIZE=2000      00150099
+//SYSOUT   DD SYSOUT=*                                                  00160000
+//SYSPRINT DD SYSOUT=*                                                  00170006
+/*                                                                      00180006

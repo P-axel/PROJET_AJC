@@ -1,0 +1,7 @@
+//API7C   JOB (ACTT#),'JULIAN',CLASS=A,MSGCLASS=A,NOTIFY=&SYSUID        00010000
+//        EXEC PGM=IDCAMS                                               00020000
+//SYSIN DD *                                                            00030000
+ REPRO IDS(API7.PROJET.TAUXCONV.DATA) ODS(API7.PROJET.TAUXCONV.KSDS)    00040003
+ PRINT IDS(API7.PROJET.TAUXCONV.KSDS) CHAR                              00050003
+//SYSPRINT DD SYSOUT=*                                                  00060000
+/*                                                                      00070000

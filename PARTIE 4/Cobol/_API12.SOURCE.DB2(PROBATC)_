@@ -1,0 +1,440 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PROJBAT.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT STATS ASSIGN TO STATDATA
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS FS-STATS.
+
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  STATS
+           RECORDING MODE IS F.
+
+       01  ENR-STATS       PIC X(200).
+
+
+       WORKING-STORAGE SECTION.
+
+
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+           EXEC SQL INCLUDE EMPLOYES END-EXEC.
+           EXEC SQL INCLUDE DEPTS END-EXEC.
+           EXEC SQL INCLUDE ORDERS END-EXEC.
+           EXEC SQL INCLUDE ITEMS END-EXEC.
+
+           EXEC SQL
+               DECLARE CURC CURSOR FOR
+               SELECT D.DNAME, E.LNAME, E.FNAME, E.COM,
+                      SUM(I.QUANTITY * I.PRICE) AS EMP_VENTES,
+                      SUM(I.QUANTITY * I.PRICE * E.COM) AS EMP_PRIMES
+               FROM API12.DEPTS D
+               LEFT JOIN API12.EMPLOYEES E ON E.DEPT = D.DEPT
+               LEFT JOIN API12.ORDERS O ON O.S_NO = E.E_NO
+               LEFT JOIN API12.ITEMS I ON I.O_NO = O.O_NO
+               GROUP BY D.DNAME, E.LNAME, E.FNAME, E.COM
+               ORDER BY D.DNAME, E.LNAME
+           END-EXEC.
+
+       77  FS-STATS        PIC 99          VALUE 0.
+       77  WS-SQLCODE      PIC -9(9) .
+       77  WS-MSG          PIC X(80)       VALUE SPACE.
+       77  ED-SQLCODE      PIC +9(9).
+       77  WS-ANO          PIC 99          VALUE ZERO.
+       77  WS-DATE         PIC X(6)        VALUE SPACES.
+
+      * VARIABLE DE LOG
+       77  WS-PGM          PIC X(8) VALUE 'PROBATC'.
+       77  WS-CONTEXT      PIC X(30).
+       77  WS-CONTEXT-LEN  PIC 99.
+       77  WS-USER         PIC X(8).
+
+      *INDICATEUR DE VARIABLE
+       77 INDIC-DNAME       PIC S9(4) COMP.
+       77 INDIC-LNAME       PIC S9(4) COMP.
+       77 INDIC-FNAME       PIC S9(4) COMP.
+       77 INDIC-COM         PIC S9(4) COMP.
+       77 INDIC-VENTES      PIC S9(4) COMP.
+       77 INDIC-PRIMES      PIC S9(4) COMP.
+
+      * AGREGATS -> VARIABLES HOTES
+       77 EMP-VENTES     PIC S9(9)V99 COMP-3.
+       77 EMP-PRIMES     PIC S9(9)V99 COMP-3.
+
+      * VARIABLE HOST EDITION NON AFFICHE
+       77 EMP-COM-ED     PIC S9(3).
+
+      *CHANGEMENT DE DEPARTEMENT
+       01 SAVE-DNAME       PIC X(20)    VALUE SPACES.
+       01 FIRST-FETCH      PIC X        VALUE 'Y'.
+
+      *CALCUL TOTAUX
+       01 TOT-EMP-DEPT        PIC 9(3)        VALUE 0.
+       01 TOT-PRIME-DEPT      PIC S9(11)V99   VALUE 0.
+       01 TOT-PRIME-ALL       PIC S9(11)V99   VALUE 0.
+
+      *VARIABLE D'AFFICHAGE
+       77 EMP-FNAME-ED        PIC X(9).
+       77 EMP-LNAME-ED        PIC X(9).
+       77 EMP-PRIMES-ED       PIC $$.$$$.$$9,99.
+       77 F-COM-TOT           PIC $$.$$$.$$9,99.
+       77 TOT-PRIME-ED        PIC $$.$$$.$$9,99.
+       77 WS-PRIMES-T         PIC X(30).
+       77 WS-COM-TOT-T        PIC X(30).
+       77 WS-PRIMES-NO-SPACE  PIC X(30).
+       77 WS-COM-TOT-NO-SPACE PIC X(30).
+       77 I                   PIC 99.
+       77 J                   PIC 99.
+       77 WS-AMT-IN           PIC X(30).
+       77 WS-AMT-OUT          PIC X(30).
+
+       01 LINE-STAR           PIC X(49) VALUE ALL '*'.
+       01 BLANK-LINE          PIC X(49) VALUE ALL SPACES.
+
+       01 HDR-DEPT.
+          05 FILLER        PIC X(10)   VALUE '*         '.
+          05 FILLER        PIC X(13)   VALUE 'DEPARTMENT : '.
+          05 DEP-DNAME-ED  PIC X(25).
+          05 FILLER        PIC X(1)    VALUE '*'.
+
+
+       01 LINE-EMP.
+          05 FILLER         PIC X(2) VALUE '* '.
+          05 F-NOM          PIC X(20).
+          05 FILLER         PIC X(1).
+          05 F-COM          PIC X(24).
+          05 FILLER         PIC X(2) VALUE ' *'.
+
+       01 FOOT-DEPT.
+          05 FILLER         PIC X(2) VALUE '*'.
+          05 FILLER         PIC X(12) VALUE 'COUNT EMP : '.
+          05 F-COUNT        PIC 9(3).
+          05 FILLER         PIC 9(5).
+          05 F-PRIMES-TOT   PIC X(26).
+          05 FILLER         PIC X(1) VALUE '*'.
+
+       01 HDR-ALL.
+          05 FILLER         PIC X(17) VALUE '*                '.
+          05 FILLER         PIC X(15) VALUE 'ALL DEPARTMENTS'.
+          05 FILLER         PIC X(17) VALUE '                *'.
+
+       01 ALL-DEPT.
+          05 FILLER         PIC X(2) VALUE '*'.
+          05 FILLER         PIC X(12) VALUE 'COUNT EMP : '.
+          05 TOT-EMP-ALL    PIC 9(3)        VALUE 0.
+          05 FILLER         PIC 9(5).
+          05 F-PRIMES-ALL   PIC X(26).
+          05 FILLER         PIC X(1) VALUE '*'.
+
+       PROCEDURE DIVISION.
+       MAIN.
+           PERFORM OUVERTURE-FICHIER
+           PERFORM TRAITEMENT-SQL
+           PERFORM FERMETURE-FICHIERS
+           PERFORM FIN-PROGRAMME
+           GOBACK.
+
+
+      * OUVERTURE DU FICHIER STATS
+       OUVERTURE-FICHIER.
+           OPEN OUTPUT STATS
+           PERFORM LOG
+           STRING 'OUVERTURE DU FICHIER EXTRACT'
+                   DELIMITED BY SIZE
+                   INTO WS-CONTEXT
+                   WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+           PERFORM TEST-FS
+           .
+
+       TRAITEMENT-SQL.
+           MOVE 0 TO WS-SQLCODE
+      *OUVERTURE CURSEUR
+           EXEC SQL
+                OPEN CURC
+           END-EXEC
+           MOVE 'OUVERTURE CURSEUR'  TO WS-MSG
+           PERFORM TEST-SQLCODE
+           PERFORM FETCH
+           PERFORM TEST-SQLCODE
+           MOVE 'Y' TO FIRST-FETCH
+
+      *BOUCLE PRINCIPALE
+           PERFORM UNTIL SQLCODE = 100
+
+             IF FIRST-FETCH = 'Y'
+                MOVE DEP-DNAME-ED TO SAVE-DNAME
+                PERFORM AFFICHAGE-DEPT-HEADER
+                MOVE 'N' TO FIRST-FETCH
+             END-IF
+
+      * CHANGEMENT DE DEPARTEMENT
+             IF DEP-DNAME-ED NOT = SAVE-DNAME
+               PERFORM AFFICHAGE-TOTAUX-DEPT
+               MOVE DEP-DNAME-ED TO SAVE-DNAME
+               MOVE 0 TO TOT-EMP-DEPT
+               MOVE 0 TO TOT-PRIME-DEPT
+               PERFORM AFFICHAGE-DEPT-HEADER
+             END-IF
+
+             PERFORM COUNT-TOTAUX
+
+             PERFORM AFFICHAGE-EMP
+
+      *REINITIALISATION DES VARIABLES
+             INITIALIZE HDR-DEPT
+             INITIALIZE LINE-EMP
+             INITIALIZE FOOT-DEPT
+             INITIALIZE HDR-ALL
+             MOVE 0 TO  EMP-VENTES
+             MOVE 0 TO  EMP-PRIMES
+
+             PERFORM FETCH
+
+             PERFORM TEST-SQLCODE
+           END-PERFORM
+           PERFORM AFFICHAGE-TOTAUX-DEPT
+           PERFORM AFFICHAGE-ALL-DEPT
+           EXEC SQL
+                CLOSE CURC
+           END-EXEC
+           MOVE 'CLOSE CTRACKS' TO WS-MSG
+           PERFORM TEST-SQLCODE
+           GOBACK.
+
+       COUNT-TOTAUX.
+
+           MOVE EMP-PRIMES TO EMP-PRIMES-ED
+           ADD 1             TO TOT-EMP-DEPT
+           ADD EMP-PRIMES TO TOT-PRIME-DEPT
+           ADD 1             TO TOT-EMP-ALL
+           ADD EMP-PRIMES TO TOT-PRIME-ALL.
+
+       FETCH.
+           EXEC SQL
+            FETCH CURC
+              INTO :DEP-DNAME:INDIC-DNAME,
+                   :EMP-LNAME:INDIC-LNAME,
+                   :EMP-FNAME:INDIC-FNAME,
+                   :EMP-COM:INDIC-COM,
+                   :EMP-VENTES:INDIC-VENTES,
+                   :EMP-PRIMES:INDIC-PRIMES
+           END-EXEC
+
+
+      * TEST INDICATEUR DE VARIABLES SQL
+           IF INDIC-DNAME < 0
+              MOVE SPACES TO DEP-DNAME-ED
+           ELSE
+               MOVE DEP-DNAME-TEXT(1:DEP-DNAME-LEN)
+                    TO DEP-DNAME-ED
+           END-IF
+
+           IF INDIC-LNAME < 0
+              MOVE SPACES TO EMP-LNAME-ED
+           ELSE
+              MOVE EMP-LNAME-TEXT(1:EMP-LNAME-LEN)
+                    TO EMP-LNAME-ED
+           END-IF
+
+           IF INDIC-FNAME < 0
+              MOVE SPACES TO EMP-FNAME-ED
+           ELSE
+              MOVE EMP-FNAME-TEXT(1:EMP-FNAME-LEN)
+                    TO EMP-FNAME-ED
+           END-IF
+
+           IF INDIC-COM < 0
+              MOVE 0 TO EMP-COM-ED
+           END-IF
+
+           IF INDIC-VENTES < 0
+              MOVE 0 TO EMP-VENTES
+           END-IF
+
+           IF INDIC-PRIMES < 0
+              MOVE 0 TO EMP-PRIMES-ED
+           ELSE MOVE EMP-PRIMES TO EMP-PRIMES-ED
+           END-IF.
+
+       AFFICHAGE-DEPT-HEADER.
+           MOVE ALL '*' TO LINE-STAR
+           DISPLAY LINE-STAR
+           WRITE ENR-STATS FROM LINE-STAR
+
+           DISPLAY HDR-DEPT
+           WRITE ENR-STATS FROM HDR-DEPT
+           DISPLAY LINE-STAR
+           WRITE ENR-STATS FROM LINE-STAR.
+
+
+       AFFICHAGE-TOTAUX-DEPT.
+
+           DISPLAY LINE-STAR
+           WRITE ENR-STATS FROM LINE-STAR
+
+           MOVE TOT-EMP-DEPT     TO F-COUNT
+           MOVE TOT-PRIME-DEPT   TO F-COM-TOT
+      * RETIRER LES ESPACES
+           MOVE F-COM-TOT TO WS-COM-TOT-T
+           MOVE SPACES    TO WS-COM-TOT-NO-SPACE
+           MOVE 1         TO J
+
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I >
+                      LENGTH OF WS-COM-TOT-T
+               IF WS-COM-TOT-T(I:1) NOT = SPACE
+                   MOVE WS-COM-TOT-T(I:1) TO WS-COM-TOT-NO-SPACE(J:1)
+                   ADD 1 TO J
+               END-IF
+           END-PERFORM
+           STRING
+              " * COM : "         DELIMITED BY SIZE
+              WS-COM-TOT-NO-SPACE    DELIMITED BY SIZE
+           INTO F-PRIMES-TOT
+           END-STRING
+
+           DISPLAY FOOT-DEPT
+           WRITE ENR-STATS FROM FOOT-DEPT
+
+           DISPLAY LINE-STAR
+           WRITE ENR-STATS FROM LINE-STAR
+
+           DISPLAY BLANK-LINE
+           WRITE ENR-STATS FROM BLANK-LINE.
+
+
+       AFFICHAGE-EMP.
+
+           STRING EMP-FNAME-ED DELIMITED BY SPACE
+                    " "          DELIMITED BY SIZE
+                    EMP-LNAME-ED DELIMITED BY SPACE
+                    INTO F-NOM
+           END-STRING
+
+           MOVE EMP-PRIMES-ED TO WS-PRIMES-T
+           MOVE SPACES        TO WS-PRIMES-NO-SPACE.
+           MOVE 1             TO J.
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > LENGTH OF WS-PRIMES-T
+               IF WS-PRIMES-T(I:1) NOT = SPACE
+                   MOVE WS-PRIMES-T(I:1) TO WS-PRIMES-NO-SPACE(J:1)
+                   ADD 1 TO J
+               END-IF
+           END-PERFORM.
+
+           STRING "* COM : " DELIMITED BY SIZE
+                  WS-PRIMES-NO-SPACE DELIMITED BY SIZE
+                  INTO F-COM
+           END-STRING
+
+           DISPLAY LINE-EMP
+           WRITE ENR-STATS FROM LINE-EMP.
+
+       AFFICHAGE-ALL-DEPT.
+
+           MOVE ALL '*' TO LINE-STAR
+           DISPLAY LINE-STAR
+           WRITE ENR-STATS FROM LINE-STAR
+
+           DISPLAY HDR-ALL
+           WRITE ENR-STATS FROM HDR-ALL
+
+           MOVE ALL '*' TO LINE-STAR
+           DISPLAY LINE-STAR
+           WRITE ENR-STATS FROM LINE-STAR
+
+           MOVE TOT-PRIME-ALL TO TOT-PRIME-ED
+           MOVE TOT-PRIME-ED  TO WS-AMT-IN
+           MOVE SPACES TO WS-AMT-OUT
+           MOVE 1      TO J
+           INITIALIZE TOT-PRIME-ALL
+
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > LENGTH OF WS-AMT-IN
+               IF WS-AMT-IN(I:1) NOT = SPACE
+                   MOVE WS-AMT-IN(I:1) TO WS-AMT-OUT(J:1)
+                   ADD 1 TO J
+               END-IF
+           END-PERFORM
+
+           STRING " * COM : " DELIMITED BY SIZE
+                   WS-AMT-OUT DELIMITED BY SIZE
+                   INTO F-PRIMES-ALL
+           END-STRING
+
+           DISPLAY ALL-DEPT
+           WRITE ENR-STATS FROM ALL-DEPT
+           INITIALIZE F-PRIMES-ALL
+           MOVE ALL '*' TO LINE-STAR
+           DISPLAY LINE-STAR
+           WRITE ENR-STATS FROM LINE-STAR
+
+           DISPLAY BLANK-LINE
+           WRITE ENR-STATS FROM BLANK-LINE.
+
+       FERMETURE-FICHIERS.
+           MOVE 'FERMETURE FICHIERS' TO WS-MSG
+           PERFORM LOG
+           CLOSE STATS
+           IF FS-STATS NOT = 0
+              MOVE 'FERMETURE DE FICHIER' TO WS-MSG
+              PERFORM LOG
+           END-IF.
+
+       FIN-PROGRAMME.
+           MOVE 'TRAITEMENT TERMINE AVEC SUCCES.' TO WS-MSG
+           PERFORM LOG
+           DISPLAY WS-MSG.
+
+       TEST-FS.
+           IF FS-STATS NOT = ZERO
+             STRING 'ERREUR '
+                 WS-CONTEXT(1:WS-CONTEXT-LEN)
+                 ' FS : '
+                 FS-STATS
+                 DELIMITED BY SIZE
+                 INTO WS-MSG
+             END-STRING
+             PERFORM LOG
+             PERFORM ABEND-PROG
+           END-IF
+           .
+
+       TEST-SQLCODE.
+           MOVE SQLCODE TO WS-SQLCODE
+           EVALUATE TRUE
+              WHEN SQLCODE = ZERO
+                   CONTINUE
+              WHEN SQLCODE > ZERO
+                   DISPLAY 'WARNING - ' WS-MSG  ' : ' WS-SQLCODE
+              WHEN OTHER
+                  STRING 'ERREUR '
+                     WS-CONTEXT(1:WS-CONTEXT-LEN)
+                     ' SQLCODE : '
+                     WS-SQLCODE
+                     DELIMITED BY SIZE
+                     INTO WS-MSG
+                  END-STRING
+                  PERFORM LOG
+                  PERFORM ABEND-PROG
+           END-EVALUATE .
+
+       LOG.
+           EXEC SQL
+              SELECT USER
+                INTO :WS-USER
+                FROM SYSIBM.SYSDUMMY1
+           END-EXEC
+           CALL 'LOGDATA' USING WS-MSG, WS-PGM, WS-USER
+           .
+
+       ABEND-PROG.
+           DISPLAY 'ANO !!!!'
+           COMPUTE WS-ANO = 1 / WS-ANO.
+

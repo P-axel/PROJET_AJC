@@ -1,0 +1,878 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PJG4FACT.
+       AUTHOR. GROUP4.
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+      * DECLARATION DU FICHIER FACTURES
+           SELECT F-FACTURES ASSIGN TO FACTURES
+               FILE STATUS IS FS-FACT.
+
+      * DECLARATION DU FICHIER EXTRACT
+           SELECT F-EXTRACT ASSIGN TO EXTRACT
+               FILE STATUS IS FS-EXT.
+
+
+       DATA DIVISION.
+       FILE SECTION.
+      * DECLARATION DE L'ENREGISTREMENT DU FICHIER FACTURES
+       FD  F-FACTURES
+           RECORDING MODE IS F.
+       01  FACT-ENR PIC X(100).
+
+      * DECLARATION DE L'ENREGISTREMENT DU FICHIER EXTRACT
+       FD  F-EXTRACT
+           RECORDING MODE IS F.
+       01  EXT-ENR.
+      * ITEM
+           05 EXT-ITEM.
+              10 EXT-P-NO                  PIC X(3).
+              10 EXT-QTY                   PIC 99.
+              10 EXT-ITE-PRICE             PIC 9(3)V99.
+      * PRODUCT
+           05 EXT-PRODUCT.
+              10 EXT-DESCRIPTION.
+                 15 EXT-DESCRIPTION-LEN    PIC 9(4).
+                 15 EXT-DESCRIPTION-TEXT   PIC X(30).
+              10 EXT-PRO-PRICE             PIC 9(3)V99.
+      * ORDER
+           05 EXT-ORDER.
+              10 EXT-O-NO                  PIC 9(3).
+              10 EXT-DATE                  PIC X(10).
+      * CUSTOMER
+           05 EXT-CUSTOMER.
+              10 EXT-COMPANY.
+                 15 EXT-COMPANY-LEN        PIC 9(4).
+                 15 EXT-COMPANY-TEXT       PIC X(30).
+              10 EXT-ADDRESS.
+                 15 EXT-ADDRESS-LEN        PIC 9(4).
+                 15 EXT-ADDRESS-TEXT       PIC X(100).
+              10 EXT-CITY.
+                 15 EXT-CITY-LEN           PIC 9(4).
+                 15 EXT-CITY-TEXT          PIC X(20).
+              10 EXT-STATE                 PIC XX.
+              10 EXT-ZIP                   PIC X(5).
+              10 EXT-PHONE                 PIC X(10).
+      * EMPLOYEE
+           05 EXT-EMPLOYEE.
+              10 EXT-LNAME.
+                 15 EXT-LNAME-LEN          PIC 9(4).
+                 15 EXT-LNAME-TEXT         PIC X(20).
+              10 EXT-FNAME.
+                 15 EXT-FNAME-LEN          PIC 9(4).
+                 15 EXT-FNAME-TEXT         PIC X(20).
+              10 EXT-COM-RATE              PIC 9V99.
+      * DEPT
+           05 EXT-DEPT.
+              10 EXT-DNAME.
+                 15 EXT-DNAME-LEN          PIC 9(4).
+                 15 EXT-DNAME-TEXT         PIC X(20).
+           05 FILLER                       PIC X(4).
+
+       WORKING-STORAGE SECTION.
+      * VARIABLES FILE STATUS
+       01  FS-FACT                 PIC 99.
+       01  FS-EXT                  PIC 99.
+
+      * VARIABLE POUR PROVOQUER UN ABEND LORS D'UNE ANOMALIE
+       01  WS-ANO                  PIC 9 VALUE ZERO.
+
+      * ENREGISTREMENT CONTENANT LES DONNEES A INSERER DANS LA FACTURE
+       01  WS-ENR.
+      * ORDER
+           05 WS-ORDER.
+              10 WS-O-NO              PIC 9(3) VALUE ZERO.
+              10 WS-O-DATE            PIC X(10).
+      * CUSTOMER
+           05 WS-CUSTOMER.
+              10 WS-COMPANY.
+                 15 WS-COMPANY-LEN  PIC 9(4).
+                 15 WS-COMPANY-TEXT PIC X(30).
+              10 WS-ADDRESS.
+                 15 WS-ADDRESS-LEN  PIC 9(4).
+                 15 WS-ADDRESS-TEXT PIC X(100).
+              10 WS-CITY.
+                 15 WS-CITY-LEN     PIC 9(4).
+                 15 WS-CITY-TEXT    PIC X(20).
+              10 WS-STATE            PIC XX.
+              10 WS-ZIP              PIC X(5).
+              10 WS-PHONE            PIC X(10).
+      * EMPLOYEE
+           05 WS-EMPLOYEE.
+              10 WS-LNAME.
+                 15 WS-LNAME-LEN    PIC 9(4).
+                 15 WS-LNAME-TEXT   PIC X(20).
+              10 WS-FNAME.
+                 15 WS-FNAME-LEN    PIC 9(4).
+                 15 WS-FNAME-TEXT   PIC X(20).
+              10 WS-COM-RATE         PIC 9V99.
+      * DEPT
+           05 WS-DEPT.
+              10 WS-DNAME.
+                 15 WS-DNAME-LEN    PIC 9(4).
+                 15 WS-DNAME-TEXT   PIC X(20).
+      * ITEM
+           05 WS-ITEM-TAB.
+              10  CNT-ITEM           PIC 99.
+              10 WS-ITEM  OCCURS 1 TO 5
+                          DEPENDING ON CNT-ITEM.
+                 15 WS-P-NO        PIC X(3).
+                 15 WS-QTY         PIC 99.
+                 15 WS-ITE-PRICE   PIC 9(3)V99.
+                 15 WS-LINE-TOTAL  PIC 9(5)V99.
+      * PRODUCT
+                 15 WS-DESCRIPTION.
+                    20 WS-DESCRIPTION-LEN    PIC 9(4).
+                    20 WS-DESCRIPTION-TEXT   PIC X(30).
+       01  CITY-ZIP                PIC X(25).
+
+      * COMPTEUR DE LA BOUCLE
+       01  I                       PIC 99.
+       01  J                       PIC 99.
+
+      * VARIABLE DE LOG
+       01  WS-MSG                  PIC X(164).
+       01  WS-PGM                  PIC X(8) VALUE 'PROJG4P3'.
+       01  WS-CONTEXT              PIC X(30).
+       01  WS-CONTEXT-LEN          PIC 99.
+       01  WS-USER                 PIC X(8).
+
+      * VARIABLES DE CALCUL
+       01  WS-DISCOUNT             PIC 9(5)V99.
+       01  WS-SUB-TOTAL            PIC 9(5)V99.
+       01  WS-SALES-TAX            PIC 9(5)V99.
+       01  WS-COM                  PIC 9(5)V99.
+       01  WS-TOTAL                PIC 9(5)V99.
+       01  WS-TAX-RATE             PIC 99V99.
+       01  WS-DISCOUNT-LINE        PIC 9(5)V99.
+
+      * VARIABLES D'EDITION
+       01  WS-DISCOUNT-ED          PIC $$,$$9.99.
+       01  WS-SUB-TOTAL-ED         PIC $$,$$9.99.
+       01  WS-SALES-TAX-ED         PIC $$,$$9.99.
+       01  WS-COM-ED               PIC $$,$$9.99.
+       01  WS-TOTAL-ED             PIC $$,$$9.99.
+       01  WS-TAX-RATE-ED          PIC Z9.99.
+       01  WS-COM-RATE-ED          PIC 9.99.
+       01  WS-LINE-TOTAL-ED        PIC $$,$$9.99.
+       01  WS-ITE-PRICE-ED         PIC $$9.99.
+
+      * VARIABLES POUR L'ECRITURE DU FICHIER
+       01  L-BLK                   PIC X(100) VALUE SPACE.
+
+      * LIGNE CUSTOMER
+       01  L-BORDER-T-CUS.
+           05 FILLER               PIC X(64) VALUE SPACE.
+           05 H-BORDER-T-CUS       PIC X(30) VALUE ALL '_'.
+           05 FILLER               PIC X(6)  VALUE SPACE.
+
+       01  L-BORDER-B-CUS.
+           05 FILLER               PIC X(63) VALUE SPACE.
+           05 FILLER               PIC X     VALUE '|'.
+           05 H-BORDER-B-CUS       PIC X(30) VALUE ALL '_'.
+           05 FILLER               PIC X     VALUE '|'.
+           05 FILLER               PIC X(5)  VALUE SPACE.
+
+       01  L-CUSTOMER.
+           05 FILLER               PIC X(63)  VALUE SPACE.
+           05 V-BORDER-CUS         PIC X      VALUE '|'.
+           05 FILLER               PIC X(3)   VALUE SPACE.
+           05 CUS-CONTENT          PIC X(27).
+           05 V-BORDER             PIC X      VALUE '|'.
+           05 FILLER               PIC X(5)   VALUE SPACE.
+
+      * LIGNE DATE & LIEU DE FACTURATION
+       01  L-DATE-LOCATION.
+           05 FILLER               PIC X(7)   VALUE SPACE.
+           05 L-LOCATION           PIC X(8)   VALUE 'New York'.
+           05 L-SEPARATE           PIC X      VALUE ','.
+           05 FILLER               PIC X      VALUE SPACE.
+           05 L-DATE               PIC X(28).
+           05 FILLER               PIC X(55)  VALUE SPACE.
+
+      * LIGNE COMMANDE
+       01  L-ORDER.
+           05 FILLER               PIC X(6)   VALUE SPACE.
+           05 L-ORD-TITLE          PIC X(12).
+           05 FILLER               PIC X(3)   VALUE ' : '.
+           05 L-ORD-CONTENT        PIC X(10).
+           05 FILLER               PIC X(69)  VALUE SPACE.
+
+      * LIGNE EMPLOYEE
+       01  L-EMPLOYEE.
+           05 FILLER               PIC X(6)   VALUE SPACE.
+           05 L-TEXT-START         PIC X(35)  VALUE 'Your contact within
+      -       ' the department '.
+           05 L-EMP-CONTENT        PIC X(54).
+           05 FILLER               PIC X(5)   VALUE SPACE.
+
+      * LIGNES DES PRODUITS
+       01  L-BORDER-T-ITE.
+           05 FILLER               PIC X(6)   VALUE SPACE.
+           05 H-BORDER-T-ITE       PIC X(88)  VALUE ALL '_'.
+           05 FILLER               PIC X(6)   VALUE SPACE.
+
+       01  L-BORDER-B-ITE.
+           05 FILLER               PIC X(5)   VALUE SPACE.
+           05 FILLER               PIC X      VALUE '|'.
+           05 H-BORDER-B-ITE       PIC X(88)  VALUE ALL '_'.
+           05 FILLER               PIC X      VALUE '|'.
+           05 FILLER               PIC X(5)   VALUE SPACE.
+
+       01  L-TAB-ITEM.
+           05 FILLER               PIC X(5)   VALUE SPACE.
+           05 V-BORDER-ITE         PIC X      VALUE '|'.
+           05 FILLER               PIC X      VALUE SPACE.
+           05 L-ITEM.
+              10 L-P-NO             PIC X(4).
+              10 FILLER             PIC X(7)   VALUE SPACE.
+              10 L-DESCRIPTION      PIC X(30).
+              10 FILLER             PIC X(5)   VALUE SPACE.
+              10 L-QUANTITY         PIC X(8).
+              10 FILLER             PIC X(7)   VALUE SPACE.
+              10 L-ITE-PRICE        PIC X(7).
+              10 FILLER             PIC X(7)   VALUE SPACE.
+              10 L-TOTAL            PIC X(10).
+           05 FILLER                PIC XX     VALUE SPACE.
+           05 V-BORDER-ITE          PIC X      VALUE '|'.
+           05 FILLER                PIC X(5)   VALUE SPACE.
+
+      * LIGNES DES VALEURS CALCULEES
+       01  L-CALC.
+           05 FILLER               PIC X(41)  VALUE SPACE.
+           05 L-TITLE-CALC         PIC X(10).
+           05 FILLER               PIC X(10).
+           05 FILLER               PIC X(2)   VALUE ': '.
+           05 L-CALC-CONTENT       PIC X(9).
+           05 FILLER               PIC X(27)  VALUE SPACE.
+
+       01  L-CALC-RATE.
+           05 FILLER               PIC X(41)  VALUE SPACE.
+           05 L-TITLE-CALC-RATE    PIC X(10).
+           05 FILLER               PIC X.
+           05 FILLER               PIC X      VALUE '('.
+           05 L-RATE-CONTENT       PIC X(7).
+           05 FILLER               PIC X(3)   VALUE ' : '.
+           05 L-CALC-RATE-CONTENT  PIC X(9).
+           05 FILLER               PIC X(27)  VALUE SPACE.
+
+      * VARIABLE INTERMEDIAIRE
+       01  WS-PRICE-SPACE        PIC X(9).
+
+      * VARIABLE DERNIERE LIGNE
+       01  WS-LAST-LINE            PIC X.
+           88 Y                           VALUE 'Y'.
+           88 N                           VALUE 'N'.
+
+       LINKAGE SECTION.
+       01  LS-USER.
+           05 LS-USER-LEN  PIC S9(4) COMP.
+           05 LS-USER-TEXT PIC X(8).
+
+       PROCEDURE DIVISION USING LS-USER.
+           PERFORM ACCEPT-TAX
+           PERFORM INVOICE-DATE
+           PERFORM OPEN-FILE
+           PERFORM READ-EXTRACT UNTIL FS-EXT = 10
+           PERFORM CREATE-INVOICE
+           PERFORM CLOSE-FILE
+           GOBACK.
+
+      * RECUPERATION DU TAUX DE TVA SAISIE EN SYSIN
+       ACCEPT-TAX.
+           ACCEPT WS-TAX-RATE
+           MOVE WS-TAX-RATE TO WS-TAX-RATE-ED
+           .
+
+      * FORMATE LA DATE DU JOUR DE FACTURATION
+       INVOICE-DATE.
+           CALL 'PJG4DATE' USING L-DATE
+           .
+
+      * OUVERTURE DES FICHIERS
+       OPEN-FILE.
+           OPEN INPUT F-EXTRACT
+                OUTPUT F-FACTURES
+
+           STRING 'OUVERTURE DU FICHIER EXTRACT'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-EXT
+
+           STRING 'OUVERTURE DU FICHIER FACTURE'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+
+           READ F-EXTRACT
+
+           STRING 'LECTURE DE LA PREMIERE LIGNE FICHIER EXTRACT'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-EXT
+           MOVE 1 TO CNT-ITEM
+           .
+
+      * LECTURE DE LA LIGNE DU FICHIER
+       READ-EXTRACT.
+           PERFORM TRT-LINE-EXT
+           READ F-EXTRACT
+
+           STRING 'LECTURE DE LA LIGNE DU FICHIER EXTRACT'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-EXT
+           .
+
+      * FERMETURE DU FICHIER
+       CLOSE-FILE.
+           CLOSE F-EXTRACT
+                 F-FACTURES
+           .
+
+      * VERIFICATION DU FS-EXT
+       TEST-FS-EXT.
+           IF FS-EXT NOT = ZERO AND NOT = 10
+              STRING 'ERREUR ',
+                     WS-CONTEXT(1:WS-CONTEXT-LEN)
+                     ' FS-EXT : ',
+                     FS-EXT
+                     DELIMITED BY SIZE
+                     INTO WS-MSG
+              END-STRING
+
+              PERFORM LOG
+              PERFORM CLOSE-FILE
+              PERFORM ABEND-PROG
+           END-IF
+           .
+
+      * VERIFICATION DU FS-FACT
+       TEST-FS-FACT.
+           IF FS-FACT NOT = ZERO
+              STRING 'ERREUR ',
+                     WS-CONTEXT(1:WS-CONTEXT-LEN),
+                     ' FS-FACT : ',
+                     FS-FACT
+                     DELIMITED BY SIZE
+                     INTO WS-MSG
+              END-STRING
+
+              PERFORM LOG
+              PERFORM CLOSE-FILE
+              PERFORM ABEND-PROG
+           END-IF
+           .
+
+      * TRAITEMENT DE LA LIGNE DU FICHIER EXTRACT
+       TRT-LINE-EXT.
+           EVALUATE TRUE
+              WHEN WS-O-NO = ZERO
+                 PERFORM SET-WS-ENR
+                 PERFORM ADD-ITEM
+              WHEN WS-O-NO NOT = EXT-O-NO
+                 PERFORM CREATE-INVOICE
+                 MOVE 1 TO CNT-ITEM
+
+                 MOVE ZEROES TO  WS-DISCOUNT
+                 MOVE ZEROES TO  WS-SUB-TOTAL
+
+                 PERFORM SET-WS-ENR
+                 PERFORM ADD-ITEM
+              WHEN OTHER
+                 ADD 1 TO CNT-ITEM
+                 PERFORM ADD-ITEM
+           END-EVALUATE
+           .
+
+      * INIT WS-ENR AVEC LES VARIABLES DE EXT-ENR
+       SET-WS-ENR.
+      * ORDER
+           MOVE EXT-O-NO     TO WS-O-NO
+           MOVE EXT-DATE     TO WS-O-DATE
+
+      * CUSTOMER
+           MOVE EXT-COMPANY  TO WS-COMPANY
+           MOVE EXT-ADDRESS  TO WS-ADDRESS
+           MOVE EXT-CITY     TO WS-CITY
+           MOVE EXT-STATE    TO WS-STATE
+           MOVE EXT-ZIP      TO WS-ZIP
+           MOVE EXT-PHONE    TO WS-PHONE
+
+      * EMPLOYEE
+           MOVE EXT-LNAME    TO WS-LNAME
+           MOVE EXT-FNAME    TO WS-FNAME
+           MOVE EXT-COM-RATE TO WS-COM-RATE
+
+      * DEPT
+           MOVE EXT-DNAME    TO WS-DNAME
+           .
+
+      * AJOUTE UN ITEM DE EXT-ENR AU TABLEAU WS-ITEM DE WS-ENR
+       ADD-ITEM.
+      * ITEM
+           MOVE EXT-P-NO         TO WS-P-NO(CNT-ITEM)
+           MOVE EXT-QTY          TO WS-QTY(CNT-ITEM)
+           MOVE EXT-ITE-PRICE    TO WS-ITE-PRICE(CNT-ITEM)
+
+      * PRODUCT
+           MOVE EXT-DESCRIPTION  TO WS-DESCRIPTION(CNT-ITEM)
+
+      * CALCULE LA REMISE
+           COMPUTE WS-DISCOUNT-LINE = (EXT-PRO-PRICE - EXT-ITE-PRICE)
+              * EXT-QTY
+
+           ADD WS-DISCOUNT-LINE  TO WS-DISCOUNT
+
+      * CALCULE DU PRIX TOTAL VENDU DE LA LIGNE
+           COMPUTE WS-LINE-TOTAL(CNT-ITEM) = EXT-QTY * EXT-ITE-PRICE
+
+      * CALCULE DE LA SOMME DES PRIX TOTAUX VENDU DE TOUTES LES LIGNES
+           ADD WS-LINE-TOTAL(CNT-ITEM) TO WS-SUB-TOTAL
+           .
+
+      * GENERE LA FACTURE ET L'INSERE DANS F
+       CREATE-INVOICE.
+           SET N            TO TRUE
+           MOVE WS-DISCOUNT TO WS-DISCOUNT-ED
+
+           PERFORM CUSTOMER-PART
+           PERFORM WRITE-BLK
+
+           PERFORM DATE-PART
+           PERFORM WRITE-BLK
+           PERFORM ORDER-PART
+
+           PERFORM EMP-PART
+           PERFORM WRITE-BLK
+
+           PERFORM PROD-PART
+           PERFORM WRITE-BLK
+
+           PERFORM CALC-PART
+           SET Y TO TRUE
+           PERFORM WRITE-BLK
+           .
+
+      * ECRIT UN SAUT DE LIGNE
+       WRITE-BLK.
+           IF Y
+              WRITE FACT-ENR FROM L-BLK BEFORE ADVANCING PAGE
+           ELSE
+              WRITE FACT-ENR FROM L-BLK BEFORE ADVANCING 1 LINES
+           END-IF
+
+           STRING 'ECRITURE SAUT DE LIGNE' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+           PERFORM TEST-FS-FACT
+           .
+
+      * PARTIE CLIENT DE LA FACTURE
+       CUSTOMER-PART.
+           PERFORM WRITE-BORDER-T-CUS
+           PERFORM INIT-L-CUSTOMER
+           PERFORM WRITE-CUSTOMER
+
+           PERFORM INIT-L-CUSTOMER
+           MOVE WS-COMPANY-TEXT(1:ws-company-len) TO CUS-CONTENT
+           PERFORM WRITE-CUSTOMER
+
+           PERFORM INIT-L-CUSTOMER
+           MOVE WS-ADDRESS-TEXT(1:ws-address-len) TO CUS-CONTENT
+           PERFORM WRITE-CUSTOMER
+
+           PERFORM INIT-L-CUSTOMER
+           STRING WS-CITY-TEXT(1:WS-CITY-LEN), ', ', WS-ZIP
+                  DELIMITED BY SIZE
+                  INTO CUS-CONTENT
+           END-STRING
+           PERFORM WRITE-CUSTOMER
+
+           PERFORM INIT-L-CUSTOMER
+           MOVE WS-STATE   TO CUS-CONTENT
+           PERFORM WRITE-CUSTOMER
+
+           PERFORM INIT-L-CUSTOMER
+           MOVE WS-PHONE   TO CUS-CONTENT
+           PERFORM WRITE-CUSTOMER
+
+           PERFORM INIT-L-CUSTOMER
+           PERFORM WRITE-CUSTOMER
+           PERFORM WRITE-BORDER-B-CUS
+           .
+
+      * ECRIT LE LIGNE CLIENT
+       WRITE-CUSTOMER.
+           WRITE FACT-ENR FROM L-CUSTOMER BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE CLIENT' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * ECRIT LA BORDURE HORIZONTAL SUPERIEUR DE LA PARTIE CLIENT
+       WRITE-BORDER-T-CUS.
+           WRITE FACT-ENR FROM L-BORDER-T-CUS BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE BORDURE SUPERIEUR CLIENT'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * ECRIT LA BORDURE HORIZONTAL INFERIEUR DE LA PARTIE CLIENT
+       WRITE-BORDER-B-CUS.
+           WRITE FACT-ENR FROM L-BORDER-B-CUS BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE BORDURE INFERIEUR CLIENT'
+                  DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * ECRIT LA DATE DE FACTURATION
+       DATE-PART.
+           WRITE FACT-ENR FROM L-DATE-LOCATION BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE DATE DU JOUR' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * PARTIE COMMANDE DE LA FACTURE
+       ORDER-PART.
+           PERFORM INIT-L-ORDER
+           MOVE 'Order number' TO L-ORD-TITLE
+           MOVE WS-O-NO        TO L-ORD-CONTENT
+           PERFORM WRITE-ORDER
+
+           PERFORM INIT-L-ORDER
+           MOVE 'ORDER DATE'   TO L-ORD-TITLE
+           MOVE WS-O-DATE      TO L-ORD-CONTENT
+           PERFORM WRITE-ORDER
+           .
+
+      * ECRIT UNE LIGNE DE LA COMMANDE
+       WRITE-ORDER.
+           WRITE FACT-ENR FROM L-ORDER BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE COMMANDE' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * PARTIE EMPLOYEE DE LA FACTURE
+       EMP-PART.
+           PERFORM INIT-L-EMPLOYEE
+
+           IF WS-FNAME-LEN > 0
+              STRING WS-DNAME-TEXT(1:WS-DNAME-LEN),
+                     ' : '
+                     WS-LNAME-TEXT(1:WS-LNAME-LEN),
+                     ', ',
+                     WS-FNAME-TEXT(1:WS-FNAME-LEN),
+                     DELIMITED BY SIZE
+                     INTO L-EMP-CONTENT
+              END-STRING
+           else
+              STRING WS-DNAME-TEXT(1:WS-DNAME-LEN),
+                     ' : '
+                     WS-LNAME-TEXT(1:WS-LNAME-LEN),
+                     DELIMITED BY SIZE
+                     INTO L-EMP-CONTENT
+              END-STRING
+           END-IF
+
+           WRITE FACT-ENR FROM L-EMPLOYEE BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE EMPLOYEE' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * PARTIE PRODUITS DE LA FACTURE
+       PROD-PART.
+           PERFORM INIT-L-TAB-ITEM
+           PERFORM WRITE-BORDER-T-PROD
+
+           MOVE 'P_NO' TO L-P-NO
+           MOVE 'DESCRIPTION' TO L-DESCRIPTION
+           MOVE 'QUANTITY' TO L-QUANTITY
+           MOVE 'PRICE' TO L-ITE-PRICE
+           MOVE 'LINE TOTAL' TO L-TOTAL
+
+           PERFORM WRITE-PROD
+
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > CNT-ITEM
+              PERFORM INIT-L-TAB-ITEM
+              MOVE WS-LINE-TOTAL(I)       TO WS-LINE-TOTAL-ED
+              MOVE WS-ITE-PRICE(I)        TO WS-ITE-PRICE-ED
+
+              MOVE WS-P-NO(I)             TO L-P-NO
+              MOVE WS-DESCRIPTION-text(I) TO L-DESCRIPTION
+
+              MOVE WS-QTY(I)              TO L-QUANTITY
+
+              MOVE WS-ITE-PRICE-ED        TO WS-PRICE-SPACE
+              PERFORM CLEAN-PRICE
+
+              MOVE WS-LINE-TOTAL-ED       TO WS-PRICE-SPACE
+              PERFORM CLEAN-LINE-TOTAL
+              PERFORM WRITE-PROD
+           END-PERFORM
+
+           PERFORM WRITE-BORDER-B-PROD
+           .
+
+      * ECRIT LA LIGNE PRODUIT
+       WRITE-PROD.
+           WRITE FACT-ENR FROM L-TAB-ITEM BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE PRODUIT' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * ECRIT LA BORDURE SUPERIEUR TABLEAU PRODUIT
+       WRITE-BORDER-T-PROD.
+           WRITE FACT-ENR FROM L-BORDER-T-ITE BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE BORDURE SUPERIEUR PRODUIT' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * ECRIT LA BORDURE INFERIEUR DU TABLEAU PRODUIT
+       WRITE-BORDER-B-PROD.
+           WRITE FACT-ENR FROM L-BORDER-B-ITE BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE BORDURE INFERIEUR PRODUIT' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * PARTIE CALCULE DE LA FACTURE
+       CALC-PART.
+           PERFORM CALC-VALUE
+           MOVE WS-DISCOUNT-ED TO WS-PRICE-SPACE
+           MOVE 'Discount' TO L-TITLE-CALC
+           PERFORM CLEAN-CALC-CONTENT
+           PERFORM WRITE-CALC
+           PERFORM WRITE-BLK
+
+           MOVE WS-SUB-TOTAL-ED TO WS-PRICE-SPACE
+           MOVE 'Sub Total' TO L-TITLE-CALC
+           PERFORM CLEAN-CALC-CONTENT
+           PERFORM WRITE-CALC
+           PERFORM WRITE-BLK
+
+           MOVE WS-TAX-RATE-ED  TO WS-PRICE-SPACE
+           PERFORM CLEAN-RATE-CONTENT
+
+           MOVE WS-SALES-TAX-ED TO WS-PRICE-SPACE
+           MOVE 'Sales tax' TO L-TITLE-CALC-RATE
+           PERFORM CLEAN-CALC-RATE-CONTENT
+           PERFORM WRITE-CALC-RATE
+           PERFORM WRITE-BLK
+
+           MOVE WS-COM-RATE-ED  TO WS-PRICE-SPACE
+           PERFORM CLEAN-RATE-CONTENT
+
+           MOVE WS-COM-ED       TO WS-PRICE-SPACE
+           MOVE 'Commission' TO L-TITLE-CALC-RATE
+           PERFORM CLEAN-CALC-RATE-CONTENT
+           PERFORM WRITE-CALC-RATE
+           PERFORM WRITE-BLK
+
+           MOVE WS-TOTAL-ED     TO WS-PRICE-SPACE
+           MOVE 'Total' TO L-TITLE-CALC
+           PERFORM CLEAN-CALC-CONTENT
+           PERFORM WRITE-CALC
+           .
+
+      * CALCULE DU TOTAL, DU SUB TOTAL, TAX ET LA COMMISSION
+       CALC-VALUE.
+      * SUB TOTAL
+           MOVE WS-SUB-TOTAL   TO WS-SUB-TOTAL-ED
+
+      * SALES TAX
+           COMPUTE WS-SALES-TAX = WS-TAX-RATE / 100 * WS-SUB-TOTAL
+           MOVE WS-SALES-TAX   TO WS-SALES-TAX-ED
+
+      * COMMISSION
+           COMPUTE WS-COM = WS-SUB-TOTAL * WS-COM-RATE
+           MOVE WS-COM TO WS-COM-ED
+           COMPUTE WS-COM-RATE-ED = WS-COM-RATE * 100
+
+      * TOTAL
+           COMPUTE WS-TOTAL = WS-SUB-TOTAL + WS-SALES-TAX
+           MOVE WS-TOTAL TO WS-TOTAL-ED
+           .
+
+      * ECRIT LA LIGNE DE LA VALEUR CALCULEE
+       WRITE-CALC.
+           WRITE FACT-ENR FROM L-CALC BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE VALEUR CALCULEE' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * ECRIT LA LIGNE DU TAUX CALCULE
+       WRITE-CALC-RATE.
+           WRITE FACT-ENR FROM L-CALC-RATE BEFORE ADVANCING 1 LINES
+
+           STRING 'ECRITURE TAUX CALCULEE' DELIMITED BY SIZE
+                  INTO WS-CONTEXT
+                  WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS-FACT
+           .
+
+      * REINITIALISE L-CUSTOMER
+       INIT-L-CUSTOMER.
+           MOVE SPACES TO CUS-CONTENT
+           .
+
+      * REINITIALISE L-ORDER
+       INIT-L-ORDER.
+           MOVE SPACES TO L-ORD-TITLE
+           MOVE SPACES TO L-ORD-CONTENT
+           .
+
+      * REINITIALISE L-EMPLOYEE
+       INIT-L-EMPLOYEE.
+           MOVE SPACES TO L-EMP-CONTENT
+           .
+
+      * REINITIALISE L-TAB-ITEM
+       INIT-L-TAB-ITEM.
+           MOVE SPACES TO L-P-NO
+           MOVE SPACES TO L-DESCRIPTION
+           MOVE SPACES TO L-QUANTITY
+           MOVE SPACES TO L-ITE-PRICE
+           MOVE SPACES TO L-TOTAL
+           .
+
+      * SUPPRIME LES ESPACES DANS LE PRIX DE LA LIGNE PRODUIT
+       CLEAN-PRICE.
+           PERFORM VARYING J FROM 1 BY 1 UNTIL J > 9
+              IF WS-PRICE-SPACE(J:1) NOT = SPACE
+                 INSPECT L-ITE-PRICE REPLACING FIRST SPACE BY
+                    WS-PRICE-SPACE(J:1)
+              END-IF
+           END-PERFORM
+
+           MOVE SPACES TO WS-PRICE-SPACE
+           .
+
+      * SUPPRIME LES ESPACES DANS LE TOTAL DE LA LIGNE PRODUIT
+       CLEAN-LINE-TOTAL.
+           PERFORM VARYING J FROM 1 BY 1 UNTIL J > 9
+              IF WS-PRICE-SPACE(J:1) NOT = SPACE
+                 INSPECT L-TOTAL REPLACING FIRST SPACE BY
+                    WS-PRICE-SPACE(J:1)
+              END-IF
+           END-PERFORM
+
+           MOVE SPACES TO WS-PRICE-SPACE
+           .
+
+      * SUPPRIME LES ESPACES DANS LA VALEUR CALCULEE
+       CLEAN-CALC-CONTENT.
+           MOVE SPACES TO L-CALC-CONTENT
+           PERFORM VARYING J FROM 1 BY 1 UNTIL J > 9
+              IF WS-PRICE-SPACE(J:1) NOT = SPACE
+                 INSPECT L-CALC-CONTENT REPLACING FIRST SPACE BY
+                    WS-PRICE-SPACE(J:1)
+              END-IF
+           END-PERFORM
+
+           MOVE SPACES TO WS-PRICE-SPACE
+           .
+
+      * SUPPRIME LES ESPACES DANS LE TAUX
+       CLEAN-RATE-CONTENT.
+           MOVE SPACES TO L-RATE-CONTENT
+           PERFORM VARYING J FROM 1 BY 1 UNTIL J > 9
+              IF WS-PRICE-SPACE(J:1) NOT = SPACE
+                 INSPECT L-RATE-CONTENT REPLACING FIRST SPACE BY
+                    WS-PRICE-SPACE(J:1)
+              END-IF
+           END-PERFORM
+           INSPECT L-RATE-CONTENT REPLACING FIRST SPACE BY '%'
+           INSPECT L-RATE-CONTENT REPLACING FIRST SPACE BY ')'
+
+           MOVE SPACES TO WS-PRICE-SPACE
+           .
+
+      * SUPPRIME LES ESPACES DANS LA VALEUR CALCULEE DU TAUX
+       CLEAN-CALC-RATE-CONTENT.
+           MOVE SPACES TO L-CALC-RATE-CONTENT
+
+           PERFORM VARYING J FROM 1 BY 1 UNTIL J > 9
+              IF WS-PRICE-SPACE(J:1) NOT = SPACE
+                 INSPECT L-CALC-RATE-CONTENT REPLACING FIRST SPACE BY
+                    WS-PRICE-SPACE(J:1)
+              END-IF
+           END-PERFORM
+
+           MOVE SPACES TO WS-PRICE-SPACE
+           .
+
+      * ECRITURE DANS LE LOG
+       LOG.
+           MOVE LS-USER-TEXT(1:LS-USER-LEN) TO WS-USER
+           CALL 'LOGDATA' USING WS-MSG, WS-PGM, WS-USER
+           .
+
+      * PROVOQUE UN ABEND
+        ABEND-PROG.
+           COMPUTE WS-ANO = 1 / WS-ANO
+           .

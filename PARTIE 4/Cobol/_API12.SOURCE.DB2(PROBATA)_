@@ -1,0 +1,245 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PROBATA.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT STATS ASSIGN TO STATDATA
+               ORGANIZATION IS SEQUENTIAL
+               FILE STATUS IS FS-STATS.
+
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  STATS
+           RECORDING MODE IS F.
+
+       01  ENR-STATS       PIC X(200).
+
+
+       WORKING-STORAGE SECTION.
+
+
+           EXEC SQL INCLUDE SQLCA END-EXEC.
+           EXEC SQL INCLUDE PRODUCTS END-EXEC.
+           EXEC SQL INCLUDE ITEMS END-EXEC.
+           EXEC SQL INCLUDE ORDERS END-EXEC.
+
+      *CURSEUR
+           EXEC SQL
+           DECLARE CURA CURSOR FOR
+           SELECT P.DESCRIPTION, P.P_NO,
+               SUM(CASE WHEN O.O_DATE IS NOT NULL
+                        AND YEAR(O.O_DATE) = YEAR(CURRENT DATE)
+                       THEN I.QUANTITY ELSE 0 END) AS QTY_THIS_YEAR,
+               SUM(CASE WHEN O.O_DATE IS NOT NULL
+                        AND YEAR(O.O_DATE) = YEAR(CURRENT DATE) - 1
+                       THEN I.QUANTITY ELSE 0 END) AS QTY_LAST_YEAR,
+               SUM(CASE WHEN O.O_DATE IS NOT NULL
+                        AND YEAR(O.O_DATE) = YEAR(CURRENT DATE) - 2
+                       THEN I.QUANTITY ELSE 0 END) AS QTY_TWO_YEARS_AGO
+            FROM API12.PRODUCTS P
+            LEFT JOIN API12.ITEMS  I ON I.P_NO = P.P_NO
+            LEFT JOIN API12.ORDERS O ON O.O_NO = I.O_NO
+            GROUP BY P.DESCRIPTION, P.P_NO
+            ORDER BY P.DESCRIPTION
+           END-EXEC
+
+
+      * VARIABLE DE LOG
+       01  WS-MSG            PIC X(164).
+       01  WS-PGM            PIC X(8) VALUE 'PROBATA'.
+       01  WS-CONTEXT        PIC X(30).
+       01  WS-CONTEXT-LEN    PIC 99.
+       01  WS-USER           PIC X(8).
+
+
+       77  FS-STATS          PIC 99          VALUE 0.
+       77  WS-SQLCODE        PIC -9(9).
+       77  WS-ANO            PIC 99   VALUE ZERO.
+      * AGREGATS -> VARIABLES HOTES
+       77 H-QTY-N            PIC S9(9) COMP-3  VALUE 0.
+       77 H-QTY-N1           PIC S9(9) COMP-3  VALUE 0.
+       77 H-QTY-N2           PIC S9(9) COMP-3  VALUE 0.
+
+      *ZONE  AFFICHAGE
+       01 WS-PROD-TEXT PIC X(60).
+       01 HDR-FORMAT.
+          05 H-PROD    PIC X(26) VALUE SPACES.
+          05 H-SEP1    PIC X(3)  VALUE " | ".
+          05 QTY-N     PIC X(7)   VALUE "ANNEE N".
+          05 SEP2      PIC X(3)  VALUE " | ".
+          05 QTY-N1    PIC X(9)  VALUE "ANNEE N-1".
+          05 H-SEP3    PIC X(3)  VALUE " | ".
+          05 QTY-N2    PIC X(9)  VALUE "ANNEE N-2".
+
+
+       01  ENR-FORMAT.
+           05 F-PROD     PIC X(26).
+           05 F-SEP1     PIC X(3) VALUE ' | '.
+           05 F-QTY-N    PIC Z(7).
+           05 F-SEP2     PIC X(3) VALUE ' | '.
+           05 F-QTY-N1   PIC Z(9).
+           05 F-SEP3     PIC X(3) VALUE ' | '.
+           05 F-QTY-N2   PIC Z(9).
+
+
+       PROCEDURE DIVISION.
+       MAIN.
+           PERFORM OUVERTURE-FICHIER
+           PERFORM TRAITEMENT-SQL
+           PERFORM FERMETURE-FICHIERS
+           PERFORM FIN-PROGRAMME
+           GOBACK.
+       OUVERTURE-FICHIER.
+           OPEN OUTPUT STATS
+           STRING 'DEMARRAGE DU BATCH STATS A '
+                   DELIMITED BY SIZE
+                   INTO WS-CONTEXT
+                   WITH POINTER WS-CONTEXT-LEN
+           END-STRING
+
+           PERFORM TEST-FS
+            .
+
+
+       TRAITEMENT-SQL.
+           MOVE 0 TO WS-SQLCODE
+      *OUVERTURE CURSEUR
+           EXEC SQL
+                OPEN CURA
+           END-EXEC
+           MOVE 'OUVERTURE CURSEUR'  TO WS-MSG
+           PERFORM TEST-SQLCODE
+
+           PERFORM AFFICHAGE-HDR
+      *PREMIER FETCH
+           PERFORM FETCH
+           MOVE 0 TO WS-SQLCODE
+           PERFORM TEST-SQLCODE
+
+      *BOUCLE PRINCIPALE
+           PERFORM UNTIL SQLCODE NOT EQUAL ZERO
+           PERFORM AFFICHAGE-PRODUITS
+           PERFORM FETCH
+           PERFORM TEST-SQLCODE
+           END-PERFORM
+           EXEC SQL
+                CLOSE CURA
+           END-EXEC
+
+           MOVE 'CLOSE CURSEUR' TO WS-MSG
+           PERFORM TEST-SQLCODE
+           GOBACK.
+
+       FERMETURE-FICHIERS.
+           MOVE "FERMETURE FICHIERS" TO WS-MSG
+           PERFORM LOG
+           CLOSE STATS
+
+           IF FS-STATS NOT = 0 AND NOT = 10
+               MOVE "ERREUR FERMETURE FICHIERS FS=" TO WS-MSG
+               STRING WS-CONTEXT(1:WS-CONTEXT-LEN)
+                      " FS=" FS-STATS
+                      DELIMITED BY SIZE
+                      INTO WS-MSG
+               END-STRING
+               PERFORM LOG
+           END-IF.
+
+
+       FETCH.
+
+           EXEC SQL
+               FETCH CURA
+                  INTO :PRO-DESCRIPTION,
+                       :PRO-P-NO,
+                       :H-QTY-N,
+                       :H-QTY-N1,
+                       :H-QTY-N2
+           END-EXEC.
+
+       AFFICHAGE-HDR.
+           MOVE HDR-FORMAT TO ENR-FORMAT
+           DISPLAY ENR-FORMAT
+           WRITE ENR-STATS FROM ENR-FORMAT.
+
+       AFFICHAGE-PRODUITS.
+           MOVE SPACES TO WS-PROD-TEXT
+           MOVE SPACES TO F-PROD
+
+           STRING
+               PRO-DESCRIPTION-TEXT(1:20) DELIMITED BY SIZE
+                       " - "              DELIMITED BY SIZE
+                       PRO-P-NO           DELIMITED BY SIZE
+                   INTO WS-PROD-TEXT
+                   END-STRING
+
+           MOVE WS-PROD-TEXT(1:26) TO F-PROD
+
+           MOVE H-QTY-N          TO F-QTY-N
+           MOVE H-QTY-N1         TO F-QTY-N1
+           MOVE H-QTY-N2         TO F-QTY-N2
+
+           DISPLAY ENR-FORMAT
+           WRITE ENR-STATS FROM ENR-FORMAT.
+
+       TEST-FS.
+           IF FS-STATS NOT = ZERO AND NOT = 10
+             STRING 'ERREUR '
+                  WS-CONTEXT(1:WS-CONTEXT-LEN)
+                  ' FS-STATS : '
+                  FS-STATS
+                  DELIMITED BY SIZE
+                  INTO WS-MSG
+             END-STRING
+
+             PERFORM LOG
+             PERFORM ABEND-PROG
+            END-IF
+            .
+       TEST-SQLCODE.
+             MOVE SQLCODE TO WS-SQLCODE
+             EVALUATE TRUE
+                WHEN SQLCODE = ZERO
+                     CONTINUE
+                WHEN SQLCODE > ZERO
+                     DISPLAY 'WARNING - ' WS-MSG  ' : ' WS-SQLCODE
+                WHEN OTHER
+                    STRING 'ERREUR '
+                       WS-CONTEXT(1:WS-CONTEXT-LEN)
+                       ' SQLCODE : '
+                       WS-SQLCODE
+                       DELIMITED BY SIZE
+                       INTO WS-MSG
+                   END-STRING
+             PERFORM LOG
+             PERFORM ABEND-PROG
+                    END-EVALUATE
+             .
+
+
+       LOG.
+           EXEC SQL
+              SELECT USER
+                INTO :WS-USER
+                FROM SYSIBM.SYSDUMMY1
+           END-EXEC
+           CALL 'LOGDATA' USING WS-MSG, WS-PGM, WS-USER.
+
+
+       FIN-PROGRAMME.
+           MOVE 'TRAITEMENT TERMINE AVEC SUCCES.' TO WS-MSG
+           PERFORM  LOG
+           DISPLAY WS-MSG.
+
+
+       ABEND-PROG.
+           DISPLAY 'ANO !!!!'
+           COMPUTE WS-ANO = 1 / WS-ANO.
+

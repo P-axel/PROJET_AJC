@@ -1,0 +1,109 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PJG4DATE.
+       AUTHOR. GROUP4.
+       ENVIRONMENT DIVISION.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+      * DATE BRUTE
+       01  WS-DATE.
+           05 WS-YEAR  PIC X(4).
+           05 WS-MONTH PIC XX.
+           05 WS-DAY   PIC XX.
+
+      * NUMERO DU JOUR DE LA SEMAINE
+       01  WS-DAY-NO PIC 9.
+
+      * TABLEAU DES MOIS DE L'ANNEE
+       01  TAB-MONTH.
+           05 LIST-MONTH.
+              10 FILLER PIC X(9) VALUE 'January'.
+              10 FILLER PIC X(9) VALUE 'February'.
+              10 FILLER PIC X(9) VALUE 'March'.
+              10 FILLER PIC X(9) VALUE 'April'.
+              10 FILLER PIC X(9) VALUE 'May'.
+              10 FILLER PIC X(9) VALUE 'June'.
+              10 FILLER PIC X(9) VALUE 'July'.
+              10 FILLER PIC X(9) VALUE 'August'.
+              10 FILLER PIC X(9) VALUE 'September'.
+              10 FILLER PIC X(9) VALUE 'October'.
+              10 FILLER PIC X(9) VALUE 'November'.
+              10 FILLER PIC X(9) VALUE 'December'.
+           05 MONTHS REDEFINES LIST-MONTH.
+              10 MONTH-NAME PIC X(9) OCCURS 12.
+
+      * TABLEAU DES JOURS DE LA SEMAINE
+       01  TAB-DAY.
+           05 LIST-DAY.
+              10 FILLER PIC X(9) VALUE 'Monday'.
+              10 FILLER PIC X(9) VALUE 'Tuesday'.
+              10 FILLER PIC X(9) VALUE 'Wednesday'.
+              10 FILLER PIC X(9) VALUE 'Thursday'.
+              10 FILLER PIC X(9) VALUE 'Friday'.
+              10 FILLER PIC X(9) VALUE 'Saturday'.
+              10 FILLER PIC X(9) VALUE 'Sunday'.
+           05 DAYS REDEFINES LIST-DAY.
+              10 DAY-NAME PIC X(9) OCCURS 7.
+
+      * DATE FORMATER
+       01  WS-DATE-FMT PIC X(28).
+
+      * MOIS ACTUEL
+       01  WS-MONTH-LETTER   PIC X(9).
+
+      * JOUR DE LA SEMAINE ACTUEL
+       01  WS-DAY-LETTER     PIC X(9).
+
+      * COMPTEUR
+       01  I                 PIC 99.
+
+       LINKAGE SECTION.
+       01 LS-DATE PIC X(28).
+
+       PROCEDURE DIVISION USING LS-DATE.
+           PERFORM ACCEPT-DATE
+           PERFORM FIND-MONTH
+           PERFORM FIND-DAY
+           PERFORM FORMATE-DATE
+           GOBACK
+           .
+
+      * RECUPERATION DE LA DATE & DU JOUR DE LA SEMAINE
+       ACCEPT-DATE.
+           ACCEPT WS-DATE FROM DATE YYYYMMDD
+           ACCEPT WS-DAY-NO FROM DAY-OF-WEEK
+           .
+
+      * RECHERCHE DU MOIS DE L'ANNEE EN TOUTES LETTRES
+       FIND-MONTH.
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > 12
+              IF I = WS-MONTH
+                 MOVE MONTH-NAME(I) TO WS-MONTH-LETTER
+                 MOVE 13            TO I
+              END-IF
+           END-PERFORM
+           .
+
+      * RECHERCHE DU JOUR DE LA SEMAINE EN TOUTES LETTRES
+       FIND-DAY.
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > 7
+              IF I = WS-DAY-NO
+                 MOVE DAY-NAME(I) TO WS-DAY-LETTER
+                 MOVE 8           TO I
+              END-IF
+           END-PERFORM
+           .
+
+      * FORMATE LE DATE DU JOUR EN TOUTES LETTRES
+       FORMATE-DATE.
+           STRING WS-DAY-LETTER DELIMITED BY SPACE
+                  ', ' DELIMITED BY SIZE
+                  WS-MONTH-LETTER DELIMITED BY SPACE
+                  ' ' DELIMITED BY SIZE
+                  WS-DAY DELIMITED BY SIZE
+                  ', ' DELIMITED BY SIZE
+                  WS-YEAR DELIMITED BY SIZE
+                  INTO WS-DATE-FMT
+           END-STRING
+
+           MOVE WS-DATE-FMT TO LS-DATE
+           .

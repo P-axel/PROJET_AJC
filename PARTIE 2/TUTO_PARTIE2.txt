@@ -1,0 +1,150 @@
+ETAPE 1 :
+
+Créer le fichier séquentiel apix.projet.stocks.data (ou bien source selon vos configurations)
+
+Paramètres : 
+
+General Data                           Current Allocation                      
+ Management class . . : **None**        Allocated tracks  . : 1                
+ Storage class  . . . : SCAPI           Allocated extents . : 1                
+  Volume serial . . . : APIWK2                                                 
+  Device type . . . . : 3390                                                   
+ Data class . . . . . : **None**       Current Utilization                     
+  Organization  . . . : PS              Used tracks . . . . : 1                
+  Record format . . . : FB              Used extents  . . . : 1                
+  Record length . . . : 15                                                     
+  Block size  . . . . : 150                                                    
+  1st extent tracks . : 1                                                      
+  Secondary tracks  . : 1                                                      
+  Data set name type  :                 SMS Compressible  . : NO               
+                                                                               
+  Creation date . . . : 2025/11/06      Referenced date . . : 2025/11/28       
+  Expiration date . . : ***None***                                                       
+
+
+DONNEES : 
+
+P0105010
+P0203510
+P0302010
+P0401030
+P0505030
+P0603050
+P0702040
+P1003020
+P1102030
+P1201050
+P1302040
+P1403040
+P1502050
+P1603020
+P1901020
+P2401030
+
+
+****************************************************************************
+
+
+ETAPE 2 :
+
+Mise en place des fichiers VENTESEU et VENTESAS fournis dans les SOURCES via Steeve.
+
+VENTESEU
+
+Paramètres :
+
+General Data                           Current Allocation               
+ Management class . . : **None**        Allocated tracks  . : 1         
+ Storage class  . . . : SCAPI           Allocated extents . : 1         
+  Volume serial . . . : APIWK2                                          
+  Device type . . . . : 3390                                            
+ Data class . . . . . : **None**       Current Utilization              
+  Organization  . . . : PS              Used tracks . . . . : 1         
+  Record format . . . : FB              Used extents  . . . : 1         
+  Record length . . . : 35                                              
+  Block size  . . . . : 350                                             
+  1st extent tracks . : 1                                               
+  Secondary tracks  . : 1                                               
+  Data set name type  :                 SMS Compressible  . : NO        
+                                                                        
+  Creation date . . . : 2025/11/06      Referenced date . . : 2025/11/28
+  Expiration date . . : ***None***                                      
+
+
+
+DONNEES : 
+
+50010/10/2023100004P010200003
+50010/10/2023100004P030357502
+50010/10/2023100004P040100005
+50202/11/2024300002P020150003
+50202/11/2024300002P030357505
+50305/11/2025500001P11     05
+50407/11/2025400003P14     01
+50407/11/2025400003P16     04
+
+
+
+
+VENTESAS
+
+
+Paramètres :
+
+General Data                           Current Allocation               
+ Management class . . : **None**        Allocated tracks  . : 1         
+ Storage class  . . . : SCAPI           Allocated extents . : 1         
+  Volume serial . . . : APIWK2                                          
+  Device type . . . . : 3390                                            
+ Data class . . . . . : **None**       Current Utilization              
+  Organization  . . . : PS              Used tracks . . . . : 1         
+  Record format . . . : FB              Used extents  . . . : 1         
+  Record length . . . : 35                                              
+  Block size  . . . . : 350                                             
+  1st extent tracks . : 1                                               
+  Secondary tracks  . : 1                                               
+  Data set name type  :                 SMS Compressible  . : NO        
+                                                                        
+  Creation date . . . : 2025/11/06      Referenced date . . : 2025/11/27
+  Expiration date . . : ***None***                                      
+                                                                                    
+
+
+DONNEES : 
+
+
+50115/10/2023200003P020154910
+50115/10/2023200003P030307502
+50202/11/2024300002P050502507
+50305/11/2025500001P15     10
+50517/11/2025400004P10     01
+50517/11/2025400004P12     04
+
+
+
+
+
+
+**************************************************************************
+  
+ETAPE 3 :
+
+Trier ce fichier STOCKS avec le jcl SORTP2.
+
+**************************************************************************
+
+ETAPE 4 :
+
+Créer son KSDS avec le jcl IDCAMSP2.
+
+*********************************************************************************
+
+ETAPE 5 :
+
+Transférer les données du fichier séquentiel dans le nouveau fichier KSDS avec le jcl PRINTP2
+
+**********************************************************************************************
+
+ETAPE 6 :
+
+Plus qu'a mettre en place le db2 DB2PART2 puis les jcl de compilation et d'execution restants.

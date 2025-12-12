@@ -1,0 +1,10 @@
+//API7C   JOB (ACCT#),'JULIAN',CLASS=A,MSGCLASS=H,NOTIFY=&SYSUID,       00010003
+//            MSGLEVEL=(1,1),COND=(4,LT),TIME=(,5)                      00020003
+//STEP1    EXEC PGM=IEFBR14                                             00030000
+//*-----------------------------------------------------                00040003
+//*            CREATE PS FILE  - REGIONPS                               00050003
+//*-----------------------------------------------------                00060003
+//DD1      DD DSN=PROJET.NEWPRODS.DATA                                  00070003
+//            DISP=(NEW,CATLG,DELETE),                                  00080000
+//            SPACE=(TRK,(1,1),RLSE),                                   00090000
+//            DCB=(RECFM=FB,LRECL=45,BLKSIZE=450,DSORG=PS)              00100003
